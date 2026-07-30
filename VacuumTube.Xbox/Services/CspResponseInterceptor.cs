@@ -48,7 +48,7 @@ namespace VacuumTube.Xbox.Services
             await DisableFetchAsync();
         }
 
-        private async void OnRequestPaused(CoreWebView2DevToolsProtocolEventReceiver sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
+        private async void OnRequestPaused(CoreWebView2 sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
         {
             string requestId = null;
             int? status = null;

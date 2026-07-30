@@ -84,7 +84,7 @@ namespace VacuumTube.Xbox.Services
                 using (var stream = await sender.GetOutputStreamAsync(args.RemoteAddress, args.RemotePort))
                 using (var writer = new DataWriter(stream))
                 {
-                    writer.UnicodeEncoding = UnicodeEncoding.Utf8;
+                    writer.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
                     writer.WriteString(response);
                     await writer.StoreAsync();
                 }
@@ -159,7 +159,7 @@ namespace VacuumTube.Xbox.Services
 
         private static async Task<HttpRequest> ReadRequestAsync(StreamSocket socket)
         {
-            var reader = new DataReader(socket.InputStream) { UnicodeEncoding = UnicodeEncoding.Utf8, InputStreamOptions = InputStreamOptions.Partial };
+            var reader = new DataReader(socket.InputStream) { UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8, InputStreamOptions = InputStreamOptions.Partial };
             var text = new StringBuilder();
             int contentLength = 0;
             int headerEnd = -1;
@@ -214,7 +214,7 @@ namespace VacuumTube.Xbox.Services
 
             using (var writer = new DataWriter(socket.OutputStream))
             {
-                writer.UnicodeEncoding = UnicodeEncoding.Utf8;
+                writer.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
                 writer.WriteString(output.ToString());
                 await writer.StoreAsync();
                 await writer.FlushAsync();

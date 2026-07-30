@@ -191,6 +191,18 @@ def main() -> int:
     # Hardened navigation/interception invariants.
     csp = (PROJECT / "Services/CspResponseInterceptor.cs").read_text(encoding="utf-8")
     require("ContinueUnmodifiedAsync" in csp and "Fetch.disable" in csp, "CSP-Interceptor kann pausierte Requests sicher fortsetzen")
+    require(
+        "OnRequestPaused(CoreWebView2 sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)" in csp
+        and "OnRequestPaused(CoreWebView2DevToolsProtocolEventReceiver sender" not in csp,
+        "WebView2-DevTools-Eventhandler verwendet die UWP/WinRT-Signatur"
+    )
+    dial_cs = (PROJECT / "Services/DialService.cs").read_text(encoding="utf-8")
+    require(
+        "UnicodeEncoding = UnicodeEncoding.Utf8" not in dial_cs
+        and "writer.UnicodeEncoding = UnicodeEncoding.Utf8" not in dial_cs
+        and dial_cs.count("Windows.Storage.Streams.UnicodeEncoding.Utf8") >= 3,
+        "DIAL verwendet eindeutig Windows.Storage.Streams.UnicodeEncoding"
+    )
     require("OnNavigationCompleted" in main_cs and "e.IsSuccess" in main_cs, "Navigationsfehler werden sichtbar behandelt")
     require("OnRetryClicked" in main_cs and "RetryButton" in main_xaml, "Startfehler besitzen Wiederholungsweg")
 
