@@ -50,7 +50,7 @@ setup=r'''
   addEventListener('error',e=>window.__TEST_LOGS__.push({kind:'window-error',text:[e.message,e.filename,e.lineno,e.colno].join(' ')}));
   addEventListener('unhandledrejection',e=>window.__TEST_LOGS__.push({kind:'unhandledrejection',text:stringify(e.reason?.stack||e.reason)}));
   window.__VACUUMTUBE_BOOTSTRAP_CONFIG__={volume:100,adblock:true,sponsorblock:true,sponsorblock_uuid:'test',dearrow:true,dislikes:true,remove_super_resolution:true,hide_shorts:true,unlock_resolution:true,h264ify:true,h264ify_disable_webm:true,h264ify_disable_vp8:true,h264ify_disable_vp9:true,h264ify_disable_av1:true,hardware_decoding:true,wayland_hdr:false,low_memory_mode:false,fullscreen:true,features_enabled:true,music_mode_feature:true,music_mode:true,no_window_decorations:true,keep_on_top:false,pause_on_blur:true,touch_overlay:true,controller_support:true,device_discoverability:true};
-  window.__VACUUMTUBE_PLATFORM__={deviceFamily:'Windows.Xbox',deviceName:'Xbox Test',model:'Xbox Series X',userAgentModel:'Xbox Series X',manufacturer:'Microsoft',osVersion:'10.0.26100',webViewVersion:'144.0.0.0'};
+  window.__VACUUMTUBE_PLATFORM__={deviceFamily:'Windows.Xbox',deviceName:'Xbox Test',model:'Xbox Series X',userAgentModel:'Xbox Series X',manufacturer:'Microsoft',osVersion:'10.0.26100',webViewVersion:'144.0.0.0',cobaltVersion:'25.lts.40.1035033',cobaltReleaseVehicle:'gold',starboardVersion:'15'};
   window.ytcfg={data_:{HL:'en',INNERTUBE_CLIENT_NAME:'TVHTML5',INNERTUBE_CONTEXT:{client:{clientName:'TVHTML5'}}},set(v){this.data_=v},get(k){return this.data_[k]}};
   history.replaceState=()=>{}; window.environment={}; window.tectonicConfig={}; window._yttv={test:{instance:{resolveCommand:x=>x}}};
   window.__WEBVIEW_HANDLERS__=[];
@@ -169,7 +169,7 @@ try:
       'noUserstylesTab': data.get('hasUserstylesTab') is False,
       'styles': data.get('styleCount', 0) >= 3,
       'webp': data.get('webp') is True,
-      'xboxIdentity': data.get('xboxIdentity', {}).get('platformDetail') == 'XBOX' and data.get('xboxIdentity', {}).get('deviceMake') == 'Microsoft' and data.get('xboxIdentity', {}).get('deviceModel') == 'Xbox Series X' and data.get('xboxIdentity', {}).get('browserName') == 'Edge',
+      'xboxIdentity': data.get('xboxIdentity', {}).get('platformDetail') == 'XBOX' and data.get('xboxIdentity', {}).get('deviceMake') == 'Microsoft' and data.get('xboxIdentity', {}).get('deviceModel') == 'Xbox Series X' and data.get('xboxIdentity', {}).get('browserName') == 'Cobalt',
       'directSignInOriginal': data.get('directSignInDisabled') is True,
       'accountTokensPreserved': data.get('identityRequest', {}).get('context', {}).get('client', {}).get('visitorData') == 'visitor-keep' and data.get('identityRequest', {}).get('context', {}).get('user', {}).get('delegatedSessionId') == 'session-keep',
       'h5vcc': data.get('h5vcc') is True,

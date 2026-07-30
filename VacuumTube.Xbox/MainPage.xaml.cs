@@ -22,6 +22,9 @@ namespace VacuumTube.Xbox
     {
         private const string YouTubeUrl = "https://www.youtube.com/tv";
         private const string DefaultXboxModel = "Xbox Series X";
+        private const string YouTubeCobaltVersion = "25.lts.40.1035033";
+        private const string YouTubeCobaltReleaseVehicle = "gold";
+        private const string YouTubeStarboardVersion = "15";
         private static readonly HashSet<string> InternalAuthHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "youtube.com",
@@ -172,11 +175,14 @@ namespace VacuumTube.Xbox
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
 
-            // Use one coherent Xbox Series X user agent for the document, XHR/fetch,
-            // service workers, Google account pages, and YouTube API requests.  The
-            // previous per-request override sent a generic VacuumTube UA to Google
-            // authentication hosts, which can break sign-in and session hand-off.
-            _activeUserAgent = BuildXboxSeriesXUserAgent(core.Environment.BrowserVersionString);
+            // Present WebView2 as the native Xbox YouTube-TV Cobalt shell instead of
+            // desktop Edge. Keep the same UA for documents, XHR/fetch, workers and
+            // Google/YouTube account pages so the cookie session is not split by
+            // contradictory browser identities.
+            var platformInfo = GetPlatformInfo();
+            _activeUserAgent = BuildXboxYouTubeTvUserAgent(
+                (string)platformInfo["model"] ?? DefaultXboxModel,
+                (string)platformInfo["osVersion"] ?? "10.0");
             core.Settings.UserAgent = _activeUserAgent;
 
             // WinUI 2/UWP WebView2 uses its default persistent profile and user-data
@@ -260,14 +266,40 @@ namespace VacuumTube.Xbox
                    uri.Host.EndsWith(".google.com", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string BuildXboxSeriesXUserAgent(string browserVersion)
+        private static string BuildXboxYouTubeTvUserAgent(string model, string osVersion)
         {
-            var edgeVersion = string.IsNullOrWhiteSpace(browserVersion) ? "120.0.0.0" : browserVersion.Split(' ')[0];
-            var major = edgeVersion.Split('.')[0];
-            var chromiumVersion = major + ".0.0.0";
-            return "Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; " + DefaultXboxModel + ") " +
-                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/" + chromiumVersion +
-                   " Safari/537.36 Edg/" + edgeVersion;
+            var safeModel = string.IsNullOrWhiteSpace(model) ? DefaultXboxModel : model.Trim();
+            var safeOsVersion = string.IsNullOrWhiteSpace(osVersion) ? "10.0" : osVersion.Trim();
+            var chipset = GetXboxChipsetToken(safeModel);
+            var modelYear = GetXboxModelYear(safeModel);
+
+            // Cobalt's native UA format is:
+            // Mozilla/5.0 (...) Cobalt/version-build (unlike Gecko) Starboard/API,
+            // Integrator_DEVICE_Chipset_Year/Firmware (Brand, Model)
+            return "Mozilla/5.0 (Xbox; " + safeModel + ") " +
+                   "Cobalt/" + YouTubeCobaltVersion + "-" + YouTubeCobaltReleaseVehicle +
+                   " (unlike Gecko) Starboard/" + YouTubeStarboardVersion + ", " +
+                   "Microsoft_GAME_" + chipset + "_" + modelYear + "/" + safeOsVersion +
+                   " (Microsoft, " + safeModel + ")";
+        }
+
+        private static string GetXboxChipsetToken(string model)
+        {
+            if (model.IndexOf("Series S", StringComparison.OrdinalIgnoreCase) >= 0) return "Lockhart";
+            if (model.IndexOf("Series X", StringComparison.OrdinalIgnoreCase) >= 0) return "Scarlett";
+            if (model.IndexOf("One X", StringComparison.OrdinalIgnoreCase) >= 0) return "Scorpio";
+            if (model.IndexOf("One S", StringComparison.OrdinalIgnoreCase) >= 0) return "Edmonton";
+            if (model.IndexOf("Xbox One", StringComparison.OrdinalIgnoreCase) >= 0) return "Durango";
+            return "Xbox";
+        }
+
+        private static string GetXboxModelYear(string model)
+        {
+            if (model.IndexOf("Series", StringComparison.OrdinalIgnoreCase) >= 0) return "2020";
+            if (model.IndexOf("One X", StringComparison.OrdinalIgnoreCase) >= 0) return "2017";
+            if (model.IndexOf("One S", StringComparison.OrdinalIgnoreCase) >= 0) return "2016";
+            if (model.IndexOf("Xbox One", StringComparison.OrdinalIgnoreCase) >= 0) return "2013";
+            return "2020";
         }
 
         private void OnPermissionRequested(CoreWebView2 sender, CoreWebView2PermissionRequestedEventArgs e)
@@ -460,14 +492,18 @@ namespace VacuumTube.Xbox
             var version = ulong.Parse(AnalyticsInfo.VersionInfo.DeviceFamilyVersion);
             var osVersion = $"{(version & 0xFFFF000000000000UL) >> 48}.{(version & 0x0000FFFF00000000UL) >> 32}.{(version & 0x00000000FFFF0000UL) >> 16}.{version & 0x000000000000FFFFUL}";
             var device = new EasClientDeviceInformation();
+            var model = GetXboxModel(device.SystemProductName);
             return new JObject
             {
                 ["deviceFamily"] = AnalyticsInfo.VersionInfo.DeviceFamily,
                 ["deviceName"] = string.IsNullOrWhiteSpace(device.FriendlyName) ? "Xbox" : device.FriendlyName,
-                ["model"] = GetXboxModel(device.SystemProductName),
-                ["userAgentModel"] = DefaultXboxModel,
-                ["manufacturer"] = device.SystemManufacturer,
-                ["osVersion"] = osVersion
+                ["model"] = model,
+                ["userAgentModel"] = model,
+                ["manufacturer"] = string.IsNullOrWhiteSpace(device.SystemManufacturer) ? "Microsoft" : device.SystemManufacturer,
+                ["osVersion"] = osVersion,
+                ["cobaltVersion"] = YouTubeCobaltVersion,
+                ["cobaltReleaseVehicle"] = YouTubeCobaltReleaseVehicle,
+                ["starboardVersion"] = YouTubeStarboardVersion
             };
         }
 

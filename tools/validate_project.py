@@ -146,9 +146,9 @@ def main() -> int:
     require('Compile Include="Services\\MicrophonePermissionService.cs"' in csproj, "Mikrofonservice wird kompiliert")
 
     manifest = (PROJECT / "Package.appxmanifest").read_text(encoding="utf-8")
-    require('Version="1.8.1.1"' in manifest, "Paketversion erlaubt Update über Debug-Build 1.8.1.0")
     for capability in ["internetClient", "internetClientServer", "privateNetworkClientServer", "microphone"]:
         require(f'Name="{capability}"' in manifest, f"Manifest-Capability {capability}")
+    require('Version="1.8.1.2"' in manifest, "Paketversion für Cobalt-UA-Fix erhöht")
 
     # Assets must exist and be non-empty.
     required_assets = ["StoreLogo.png", "Square44x44Logo.png", "Square150x150Logo.png", "Square310x310Logo.png", "Wide310x150Logo.png", "SplashScreen.png"]
@@ -206,10 +206,16 @@ def main() -> int:
     )
     require("OnNavigationCompleted" in main_cs and "e.IsSuccess" in main_cs, "Navigationsfehler werden sichtbar behandelt")
     require("OnRetryClicked" in main_cs and "RetryButton" in main_xaml, "Startfehler besitzen Wiederholungsweg")
-    require('Xbox; " + DefaultXboxModel' in main_cs and '" Safari/537.36 Edg/" + edgeVersion' in main_cs,
-            "WebView2 verwendet einen Xbox-Series-X-Edge-User-Agent")
-    require('SetHeader("User-Agent"' not in main_cs and "GenericUserAgent" not in main_cs and "Cobalt/" not in main_cs,
-            "User-Agent wird nicht mehr pro Host widersprüchlich überschrieben")
+    require("BuildXboxYouTubeTvUserAgent" in main_cs and
+            '"Cobalt/" + YouTubeCobaltVersion' in main_cs and
+            '" (unlike Gecko) Starboard/" + YouTubeStarboardVersion' in main_cs and
+            "Microsoft_GAME_" in main_cs and "Edg/" not in main_cs,
+            "WebView2 verwendet einen nativen Xbox-YouTube-TV-Cobalt-User-Agent")
+    require('SetHeader("User-Agent"' not in main_cs and "GenericUserAgent" not in main_cs,
+            "User-Agent wird nicht pro Host widersprüchlich überschrieben")
+    require("GetXboxChipsetToken" in main_cs and "GetXboxModelYear" in main_cs and
+            "Series S" in main_cs and "Series X" in main_cs and "Xbox One" in main_cs,
+            "Cobalt-User-Agent bildet Xbox One und Series X|S modellabhängig ab")
     require("core.Profile.IsInPrivateModeEnabled" in main_cs and "CoreWebView2TrackingPreventionLevel.Basic" in main_cs,
             "WebView2 verwendet ein persistentes Nicht-InPrivate-Profil")
     require("core.Environment.UserDataFolder" in main_cs and "sessionPersistenceEnabled" in main_cs,
@@ -237,10 +243,14 @@ def main() -> int:
     require("enableDirectSignIn: false" in disable_direct_sign_in,
             "Originales disable-direct-sign-in-Verhalten bleibt unverändert")
     identification = (SRC / "preload/modules/identification.js").read_text(encoding="utf-8")
-    require("deviceMake: 'Microsoft'" in identification and "browserName: 'Edge'" in identification and
-            "clientFormFactor: 'LARGE_FORM_FACTOR'" in identification and "brand: 'VacuumTube'" not in identification,
-            "Innertube-Identität ist konsistent auf Microsoft Xbox Series X/Edge gesetzt")
-    require("authentication tokens" in identification and "functions.deepMerge(json.context.client, identity)" in identification,
+    require("deviceMake: 'Microsoft'" in identification and "browserName: 'Cobalt'" in identification and
+            "browser: 'Cobalt'" in identification and "clientFormFactor: 'LARGE_FORM_FACTOR'" in identification and
+            "brand: 'VacuumTube'" not in identification and "browserName: 'Edge'" not in identification,
+            "Innertube-Identität ist konsistent auf Microsoft Xbox/Cobalt gesetzt")
+    require("releaseVehicle" in identification and "cobaltReleaseVehicle" in identification and
+            "starboardVersion" in identification,
+            "Cobalt-Version, Release-Vehicle und Starboard-Identität werden konsistent gesetzt")
+    require("Account and session data" in identification and "functions.deepMerge(json.context.client, identity)" in identification,
             "Identifikationsmod verändert keine Konto- oder Sitzungstoken")
 
     settings_js = (SRC / "preload/modules/settings/index.js").read_text(encoding="utf-8")

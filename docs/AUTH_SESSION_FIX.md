@@ -8,14 +8,14 @@
 
 ## Neuer Stand
 
-- Ein einheitlicher Xbox-Series-X-/Edge-User-Agent wird über `CoreWebView2Settings.UserAgent` gesetzt und nicht mehr pro Anfrage überschrieben.
+- Ein einheitlicher nativer Xbox-YouTube-TV-/Cobalt-User-Agent wird über `CoreWebView2Settings.UserAgent` gesetzt und nicht mehr pro Anfrage überschrieben.
 - YouTube-/Google-Anmeldedomains bleiben im selben WebView2.
 - Das standardmäßige persistente UWP-WebView2-Profil wird verwendet; InPrivate führt zu einem sichtbaren Startfehler.
 - Tracking Prevention wird auf `Basic` gesetzt, damit Konto- und Sitzungscookies nicht unnötig blockiert werden.
 - User-Data-Folder, Profilname, Profilpfad und InPrivate-Status erscheinen in den Runtime-Diagnosen.
 - `disable-direct-sign-in.js` bleibt unverändert und setzt weiterhin `enableDirectSignIn: false`. Anmeldung erfolgt daher über den von YouTube-TV angebotenen Code-/QR-Weg.
-- Die Innertube-Identität ist konsistent: `GAME_CONSOLE`, `XBOX`, Microsoft, Xbox Series X, Edge. Konto- und Sitzungstoken werden nicht verändert.
+- Die Innertube-Identität ist konsistent: `GAME_CONSOLE`, `XBOX`, Microsoft, Xbox Series X, Cobalt. Konto- und Sitzungstoken werden nicht verändert.
 
 ## Upgrade
 
-Die Paketversion wurde von `1.8.1.0` auf `1.8.1.1` erhöht, damit Windows und Xbox den korrigierten Debug-Build als Update installieren können.
+Die Paketversion wurde auf `1.8.1.2` erhöht, damit Windows und Xbox den korrigierten Debug-Build als Update installieren können.

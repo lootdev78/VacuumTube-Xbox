@@ -10,7 +10,7 @@ UWP-/WinUI-2-Port von VacuumTube für **Xbox One** und **Xbox Series X|S**. Die 
 - Xbox-Controller werden nativ über `Windows.Gaming.Input` gelesen und auf die bisherigen VacuumTube-Controllercodes abgebildet.
 - DIAL/„Mit TV verbinden“ läuft über native UWP-UDP-/TCP-Sockets.
 - Konfiguration wird in `ApplicationData.Current.LocalSettings` gespeichert.
-- WebView2 verwendet einen konsistenten Xbox-Series-X-/Edge-User-Agent für YouTube, Google, XHR/fetch und Service Worker.
+- WebView2 verwendet einen konsistenten nativen Xbox-YouTube-TV-/Cobalt-User-Agent für YouTube, Google, XHR/fetch und Service Worker.
 - Cookies, DOM Storage, IndexedDB und Berechtigungen verbleiben im persistenten Standard-WebView2-Profil; InPrivate wird abgewiesen.
 - Google-/YouTube-Anmeldefenster bleiben im selben WebView2-Profil, statt in einen externen Browser mit getrennten Cookies zu wechseln.
 - Userstyles/Custom-CSS sind vollständig entfernt; nur internes VacuumTube-UI-CSS bleibt enthalten.
