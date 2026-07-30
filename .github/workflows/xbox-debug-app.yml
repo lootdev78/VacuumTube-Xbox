@@ -38,6 +38,7 @@ jobs:
       SOLUTION: VacuumTube.Xbox.sln
       CONFIGURATION: Debug
       PLATFORM: x64
+      NUGET_PACKAGES: D:\a\_temp\VacuumTubeNuGetPackages
 
     steps:
       - name: Checkout
@@ -56,27 +57,33 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v6
         with:
-          path: ${{ runner.temp }}\VacuumTubeNuGetPackages
+          path: D:\a\_temp\VacuumTubeNuGetPackages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
           restore-keys: |
             nuget-${{ runner.os }}-
+
+      - name: Create CI directories
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          New-Item -ItemType Directory -Force -Path artifacts\ci |
+            Out-Null
+
+          New-Item -ItemType Directory -Force -Path $env:NUGET_PACKAGES |
+            Out-Null
 
       - name: Record runner toolchain
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
 
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path artifacts\ci | Out-Null
-
           @(
             "Runner: $env:ImageOS / $env:ImageVersion"
             "MSBuild: $((Get-Command msbuild).Source)"
             "Python: $(python --version 2>&1)"
             "Node: $(node --version 2>&1)"
-            "NuGet packages: $env:RUNNER_TEMP\VacuumTubeNuGetPackages"
+            "NuGet packages: $env:NUGET_PACKAGES"
           ) | Tee-Object -FilePath artifacts\ci\toolchain.txt
 
           msbuild -version |
@@ -94,7 +101,7 @@ jobs:
             exit $LASTEXITCODE
           }
 
-      - name: Validate sources and mods
+      - name: Analyze mods
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -106,12 +113,22 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Validate project
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
           python tools\validate_project.py 2>&1 |
             Tee-Object artifacts\ci\validate-project.log
 
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
           }
+
+      - name: Test SponsorBlock adapter
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
 
           node tools\test_sponsorblock_adapter.js 2>&1 |
             Tee-Object artifacts\ci\sponsorblock.log
@@ -131,7 +148,7 @@ jobs:
             exit $LASTEXITCODE
           }
 
-          Get-ChildItem src -Recurse -Filter *.js |
+          Get-ChildItem src -Recurse -File -Filter *.js |
             ForEach-Object {
               node --check $_.FullName
 
@@ -142,15 +159,8 @@ jobs:
 
       - name: Restore NuGet packages
         shell: powershell
-        env:
-          NUGET_PACKAGES: ${{ runner.temp }}\VacuumTubeNuGetPackages
         run: |
           $ErrorActionPreference = 'Stop'
-
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path $env:NUGET_PACKAGES | Out-Null
 
           msbuild $env:SOLUTION `
             /t:Restore `
@@ -170,17 +180,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $rng = New-Object `
-            System.Security.Cryptography.RNGCryptoServiceProvider
-
           $bytes = New-Object byte[] 32
 
-          try {
-            $rng.GetBytes($bytes)
-          }
-          finally {
-            $rng.Dispose()
-          }
+          [System.Security.Cryptography.RandomNumberGenerator]::Fill(
+            $bytes
+          )
 
           $password = [Convert]::ToBase64String($bytes)
 
@@ -194,8 +198,6 @@ jobs:
 
       - name: Compile and package signed Debug APPX
         shell: powershell
-        env:
-          NUGET_PACKAGES: ${{ runner.temp }}\VacuumTubeNuGetPackages
         run: |
           $ErrorActionPreference = 'Stop'
 
@@ -212,6 +214,33 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Remove private signing keys before artifact creation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Get-ChildItem `
+            -Path . `
+            -Recurse `
+            -File `
+            -Include *.pfx,*.pvk,*.key,*.pem `
+            -ErrorAction SilentlyContinue |
+              ForEach-Object {
+                Write-Host "Removing private key: $($_.FullName)"
+                Remove-Item $_.FullName -Force
+              }
+
+          $privateKeys = Get-ChildItem `
+            -Path . `
+            -Recurse `
+            -File `
+            -Include *.pfx,*.pvk,*.key,*.pem `
+            -ErrorAction SilentlyContinue
+
+          if ($privateKeys) {
+            throw "Private signing keys remain in the workspace."
+          }
+
       - name: Prepare downloadable Debug package
         shell: powershell
         run: |
@@ -219,10 +248,12 @@ jobs:
 
           $drop = 'artifacts\GitHubDebugDrop'
 
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path $drop | Out-Null
+          if (Test-Path $drop) {
+            Remove-Item $drop -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $drop |
+            Out-Null
 
           if (-not (Test-Path artifacts\AppxPackages)) {
             throw 'APPX/MSIX package directory was not created.'
@@ -242,17 +273,43 @@ jobs:
           }
 
           if (Test-Path VacuumTube.Xbox\bin\x64\Debug) {
-            Copy-Item `
+            New-Item `
+              -ItemType Directory `
+              -Force `
+              -Path $drop\Symbols |
+                Out-Null
+
+            Get-ChildItem `
               VacuumTube.Xbox\bin\x64\Debug `
-              -Destination $drop\Symbols `
               -Recurse `
-              -Force
+              -File `
+              -Filter *.pdb |
+                ForEach-Object {
+                  Copy-Item `
+                    $_.FullName `
+                    -Destination $drop\Symbols `
+                    -Force
+                }
           }
 
-          Remove-Item `
-            artifacts\*.pfx `
-            -Force `
+          Get-ChildItem `
+            -Path $drop `
+            -Recurse `
+            -File `
+            -Include *.pfx,*.pvk,*.key,*.pem `
+            -ErrorAction SilentlyContinue |
+              Remove-Item -Force
+
+          $privateKeysInDrop = Get-ChildItem `
+            -Path $drop `
+            -Recurse `
+            -File `
+            -Include *.pfx,*.pvk,*.key,*.pem `
             -ErrorAction SilentlyContinue
+
+          if ($privateKeysInDrop) {
+            throw 'Private signing keys must not be published.'
+          }
 
           $resolvedDrop = (Resolve-Path $drop).Path
 
@@ -264,7 +321,8 @@ jobs:
                 '.appxbundle',
                 '.msixbundle',
                 '.cer',
-                '.pdb'
+                '.pdb',
+                '.ps1'
               )
             }
 
@@ -285,26 +343,52 @@ jobs:
               -Encoding utf8 `
               "$drop\SHA256SUMS.txt"
 
-          "### VacuumTube Xbox Debug build" |
-            Out-File $env:GITHUB_STEP_SUMMARY -Append
+          @(
+            "### VacuumTube Xbox Debug build"
+            ""
+            "- Configuration: **$env:CONFIGURATION**"
+            "- Platform: **$env:PLATFORM**"
+            "- Package: signed development APPX/MSIX"
+            "- Public certificate included: **yes**"
+            "- Private signing key included: **no**"
+          ) | Out-File `
+                $env:GITHUB_STEP_SUMMARY `
+                -Append `
+                -Encoding utf8
 
-          "- Configuration: **$env:CONFIGURATION**" |
-            Out-File $env:GITHUB_STEP_SUMMARY -Append
+      - name: Verify artifact contains no private key
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
 
-          "- Platform: **$env:PLATFORM**" |
-            Out-File $env:GITHUB_STEP_SUMMARY -Append
+          $forbiddenFiles = Get-ChildItem `
+            -Path artifacts\GitHubDebugDrop `
+            -Recurse `
+            -File `
+            -Include *.pfx,*.pvk,*.key,*.pem `
+            -ErrorAction SilentlyContinue
 
-          "- Package: signed development APPX/MSIX" |
-            Out-File $env:GITHUB_STEP_SUMMARY -Append
+          if ($forbiddenFiles) {
+            $forbiddenFiles |
+              ForEach-Object {
+                Write-Error "Forbidden artifact: $($_.FullName)"
+              }
 
-          "- Public certificate: ``VacuumTube-Xbox-Development.cer``" |
-            Out-File $env:GITHUB_STEP_SUMMARY -Append
+            throw 'Private signing material detected in artifact.'
+          }
+
+          Write-Host 'No private signing keys are present in the artifact.'
 
       - name: Upload Debug app
         uses: actions/upload-artifact@v7
         with:
           name: VacuumTube-Xbox-Debug-x64
-          path: artifacts/GitHubDebugDrop/
+          path: |
+            artifacts/GitHubDebugDrop/**
+            !artifacts/GitHubDebugDrop/**/*.pfx
+            !artifacts/GitHubDebugDrop/**/*.pvk
+            !artifacts/GitHubDebugDrop/**/*.key
+            !artifacts/GitHubDebugDrop/**/*.pem
           if-no-files-found: error
           retention-days: 14
 
