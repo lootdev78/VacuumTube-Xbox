@@ -22,6 +22,10 @@ namespace VacuumTube.Xbox
     {
         private const string YouTubeUrl = "https://www.youtube.com/tv";
         private const string DefaultXboxModel = "Xbox Series X";
+        private const string UpstreamVacuumTubeVersion = "1.8.1";
+        private const string YouTubeClientUserAgent = "Mozilla/5.0 (PS4; Leanback Shell) Cobalt/19.lts.0-qa; compatible; VacuumTube/" + UpstreamVacuumTubeVersion;
+        private const string YouTubeNetworkUserAgent = "Mozilla/5.0 (PS4; Leanback Shell) Cobalt/25.lts.40.1035033; compatible; VacuumTube/" + UpstreamVacuumTubeVersion;
+        private const string GenericUserAgent = "VacuumTube/" + UpstreamVacuumTubeVersion;
         private const string YouTubeCobaltVersion = "25.lts.40.1035033";
         private const string YouTubeCobaltReleaseVehicle = "gold";
         private const string YouTubeStarboardVersion = "15";
@@ -175,15 +179,11 @@ namespace VacuumTube.Xbox
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
 
-            // Present WebView2 as the native Xbox YouTube-TV Cobalt shell instead of
-            // desktop Edge. Keep the same UA for documents, XHR/fetch, workers and
-            // Google/YouTube account pages so the cookie session is not split by
-            // contradictory browser identities.
-            var platformInfo = GetPlatformInfo();
-            _activeUserAgent = BuildXboxYouTubeTvUserAgent(
-                (string)platformInfo["model"] ?? DefaultXboxModel,
-                (string)platformInfo["osVersion"] ?? "10.0");
-            core.Settings.UserAgent = _activeUserAgent;
+            // Preserve the two original VacuumTube PS4/Cobalt user agents exactly:
+            // Cobalt/19 is exposed to page JavaScript so Leanback does not assume
+            // Widevine support, while www.youtube.com requests use Cobalt/25.
+            _activeUserAgent = YouTubeClientUserAgent;
+            core.Settings.UserAgent = YouTubeClientUserAgent;
 
             // WinUI 2/UWP WebView2 uses its default persistent profile and user-data
             // folder.  Refuse InPrivate mode and keep tracking prevention at Basic so
@@ -231,6 +231,16 @@ namespace VacuumTube.Xbox
             try
             {
                 var uri = new Uri(e.Request.Uri);
+
+                // Match upstream VacuumTube's Electron webRequest behavior: requests
+                // to www.youtube.com use the newer PS4/Cobalt UA; all other hosts use
+                // VacuumTube's transparent generic UA. navigator.userAgent remains
+                // the older Cobalt/19 client UA configured above.
+                var requestUserAgent = uri.Host.Equals("www.youtube.com", StringComparison.OrdinalIgnoreCase)
+                    ? YouTubeNetworkUserAgent
+                    : GenericUserAgent;
+                e.Request.Headers.SetHeader("User-Agent", requestUserAgent);
+
                 if (uri.Host.Equals("csp.withgoogle.com", StringComparison.OrdinalIgnoreCase))
                 {
                     var stream = new InMemoryRandomAccessStream();
@@ -238,7 +248,10 @@ namespace VacuumTube.Xbox
                     return;
                 }
             }
-            catch { }
+            catch (Exception error)
+            {
+                System.Diagnostics.Debug.WriteLine("Web resource request adjustment failed: " + error.Message);
+            }
         }
 
         private async void OnNewWindowRequested(CoreWebView2 sender, CoreWebView2NewWindowRequestedEventArgs e)
@@ -266,41 +279,6 @@ namespace VacuumTube.Xbox
                    uri.Host.EndsWith(".google.com", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string BuildXboxYouTubeTvUserAgent(string model, string osVersion)
-        {
-            var safeModel = string.IsNullOrWhiteSpace(model) ? DefaultXboxModel : model.Trim();
-            var safeOsVersion = string.IsNullOrWhiteSpace(osVersion) ? "10.0" : osVersion.Trim();
-            var chipset = GetXboxChipsetToken(safeModel);
-            var modelYear = GetXboxModelYear(safeModel);
-
-            // Cobalt's native UA format is:
-            // Mozilla/5.0 (...) Cobalt/version-build (unlike Gecko) Starboard/API,
-            // Integrator_DEVICE_Chipset_Year/Firmware (Brand, Model)
-            return "Mozilla/5.0 (Xbox; " + safeModel + ") " +
-                   "Cobalt/" + YouTubeCobaltVersion + "-" + YouTubeCobaltReleaseVehicle +
-                   " (unlike Gecko) Starboard/" + YouTubeStarboardVersion + ", " +
-                   "Microsoft_GAME_" + chipset + "_" + modelYear + "/" + safeOsVersion +
-                   " (Microsoft, " + safeModel + ")";
-        }
-
-        private static string GetXboxChipsetToken(string model)
-        {
-            if (model.IndexOf("Series S", StringComparison.OrdinalIgnoreCase) >= 0) return "Lockhart";
-            if (model.IndexOf("Series X", StringComparison.OrdinalIgnoreCase) >= 0) return "Scarlett";
-            if (model.IndexOf("One X", StringComparison.OrdinalIgnoreCase) >= 0) return "Scorpio";
-            if (model.IndexOf("One S", StringComparison.OrdinalIgnoreCase) >= 0) return "Edmonton";
-            if (model.IndexOf("Xbox One", StringComparison.OrdinalIgnoreCase) >= 0) return "Durango";
-            return "Xbox";
-        }
-
-        private static string GetXboxModelYear(string model)
-        {
-            if (model.IndexOf("Series", StringComparison.OrdinalIgnoreCase) >= 0) return "2020";
-            if (model.IndexOf("One X", StringComparison.OrdinalIgnoreCase) >= 0) return "2017";
-            if (model.IndexOf("One S", StringComparison.OrdinalIgnoreCase) >= 0) return "2016";
-            if (model.IndexOf("Xbox One", StringComparison.OrdinalIgnoreCase) >= 0) return "2013";
-            return "2020";
-        }
 
         private void OnPermissionRequested(CoreWebView2 sender, CoreWebView2PermissionRequestedEventArgs e)
         {

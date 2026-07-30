@@ -8,7 +8,7 @@
 
 ## Neuer Stand
 
-- Ein einheitlicher nativer Xbox-YouTube-TV-/Cobalt-User-Agent wird über `CoreWebView2Settings.UserAgent` gesetzt und nicht mehr pro Anfrage überschrieben.
+- Die spätere Xbox-UA-Änderung wurde zurückgenommen; der Host verwendet wieder die beiden originalen PS4-/Cobalt-User-Agents aus VacuumTube 1.8.1.
 - YouTube-/Google-Anmeldedomains bleiben im selben WebView2.
 - Das standardmäßige persistente UWP-WebView2-Profil wird verwendet; InPrivate führt zu einem sichtbaren Startfehler.
 - Tracking Prevention wird auf `Basic` gesetzt, damit Konto- und Sitzungscookies nicht unnötig blockiert werden.
@@ -18,4 +18,4 @@
 
 ## Upgrade
 
-Die Paketversion wurde auf `1.8.1.2` erhöht, damit Windows und Xbox den korrigierten Debug-Build als Update installieren können.
+Die Paketversion wurde anschließend auf `1.8.1.3` erhöht, damit Windows und Xbox den korrigierten Debug-Build als Update installieren können.

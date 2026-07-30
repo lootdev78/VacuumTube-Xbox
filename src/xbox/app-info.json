@@ -1,6 +1,6 @@
 {
   "name": "VacuumTube-Xbox",
-  "version": "1.8.1-xbox.3",
+  "version": "1.8.1-xbox.4",
   "runtime": "UWP WinUI 2 WebView2",
   "target": "Xbox One and Xbox Series X|S"
 }

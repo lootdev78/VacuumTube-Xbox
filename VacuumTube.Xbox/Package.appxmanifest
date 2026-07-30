@@ -4,7 +4,7 @@
   xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   IgnorableNamespaces="uap mp">
-  <Identity Name="VacuumTube.Xbox" Publisher="CN=VacuumTube" Version="1.8.1.2" />
+  <Identity Name="VacuumTube.Xbox" Publisher="CN=VacuumTube" Version="1.8.1.3" />
   <mp:PhoneIdentity PhoneProductId="761b9ec7-e691-4620-9afd-465cda8a17a7" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>VacuumTube</DisplayName>

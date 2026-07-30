@@ -4282,7 +4282,7 @@ module.exports = {
 }
 },
 "/src/xbox/app-info.json": function(module, exports, require, __filename, __dirname){
-module.exports = {"name": "VacuumTube-Xbox", "version": "1.8.1-xbox.3", "runtime": "UWP WinUI 2 WebView2", "target": "Xbox One and Xbox Series X|S"};
+module.exports = {"name": "VacuumTube-Xbox", "version": "1.8.1-xbox.4", "runtime": "UWP WinUI 2 WebView2", "target": "Xbox One and Xbox Series X|S"};
 },
 "/src/xbox/browser-entry.js": function(module, exports, require, __filename, __dirname){
 (() => {

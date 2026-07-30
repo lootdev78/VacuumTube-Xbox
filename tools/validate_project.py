@@ -148,7 +148,7 @@ def main() -> int:
     manifest = (PROJECT / "Package.appxmanifest").read_text(encoding="utf-8")
     for capability in ["internetClient", "internetClientServer", "privateNetworkClientServer", "microphone"]:
         require(f'Name="{capability}"' in manifest, f"Manifest-Capability {capability}")
-    require('Version="1.8.1.2"' in manifest, "Paketversion für Cobalt-UA-Fix erhöht")
+    require('Version="1.8.1.3"' in manifest, "Paketversion für Rückkehr zum originalen PS4-User-Agent erhöht")
 
     # Assets must exist and be non-empty.
     required_assets = ["StoreLogo.png", "Square44x44Logo.png", "Square150x150Logo.png", "Square310x310Logo.png", "Wide310x150Logo.png", "SplashScreen.png"]
@@ -206,16 +206,19 @@ def main() -> int:
     )
     require("OnNavigationCompleted" in main_cs and "e.IsSuccess" in main_cs, "Navigationsfehler werden sichtbar behandelt")
     require("OnRetryClicked" in main_cs and "RetryButton" in main_xaml, "Startfehler besitzen Wiederholungsweg")
-    require("BuildXboxYouTubeTvUserAgent" in main_cs and
-            '"Cobalt/" + YouTubeCobaltVersion' in main_cs and
-            '" (unlike Gecko) Starboard/" + YouTubeStarboardVersion' in main_cs and
-            "Microsoft_GAME_" in main_cs and "Edg/" not in main_cs,
-            "WebView2 verwendet einen nativen Xbox-YouTube-TV-Cobalt-User-Agent")
-    require('SetHeader("User-Agent"' not in main_cs and "GenericUserAgent" not in main_cs,
-            "User-Agent wird nicht pro Host widersprüchlich überschrieben")
-    require("GetXboxChipsetToken" in main_cs and "GetXboxModelYear" in main_cs and
-            "Series S" in main_cs and "Series X" in main_cs and "Xbox One" in main_cs,
-            "Cobalt-User-Agent bildet Xbox One und Series X|S modellabhängig ab")
+    require(
+        'Mozilla/5.0 (PS4; Leanback Shell) Cobalt/19.lts.0-qa; compatible; VacuumTube/' in main_cs
+        and 'Mozilla/5.0 (PS4; Leanback Shell) Cobalt/25.lts.40.1035033; compatible; VacuumTube/' in main_cs
+        and 'private const string UpstreamVacuumTubeVersion = "1.8.1";' in main_cs,
+        "Originale VacuumTube-PS4-/Cobalt-User-Agents sind unverändert enthalten"
+    )
+    require("core.Settings.UserAgent = YouTubeClientUserAgent;" in main_cs,
+            "WebView2-Client meldet den originalen Cobalt/19-User-Agent")
+    require('e.Request.Headers.SetHeader("User-Agent", requestUserAgent);' in main_cs
+            and '? YouTubeNetworkUserAgent' in main_cs and ': GenericUserAgent;' in main_cs,
+            "Request-User-Agent folgt der originalen VacuumTube-Hostlogik")
+    require("BuildXboxYouTubeTvUserAgent" not in main_cs and "Microsoft_GAME_" not in main_cs,
+            "Erfundener Xbox-Cobalt-User-Agent ist vollständig entfernt")
     require("core.Profile.IsInPrivateModeEnabled" in main_cs and "CoreWebView2TrackingPreventionLevel.Basic" in main_cs,
             "WebView2 verwendet ein persistentes Nicht-InPrivate-Profil")
     require("core.Environment.UserDataFolder" in main_cs and "sessionPersistenceEnabled" in main_cs,
