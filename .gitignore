@@ -1,0 +1,16 @@
+.vs/
+.vscode/.ropeproject/
+bin/
+obj/
+artifacts/
+.nuget/
+*.user
+*.suo
+*.pfx
+*.cer
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.appxupload
+*.msixupload
