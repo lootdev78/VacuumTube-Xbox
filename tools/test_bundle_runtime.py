@@ -50,7 +50,7 @@ setup=r'''
   addEventListener('error',e=>window.__TEST_LOGS__.push({kind:'window-error',text:[e.message,e.filename,e.lineno,e.colno].join(' ')}));
   addEventListener('unhandledrejection',e=>window.__TEST_LOGS__.push({kind:'unhandledrejection',text:stringify(e.reason?.stack||e.reason)}));
   window.__VACUUMTUBE_BOOTSTRAP_CONFIG__={volume:100,adblock:true,sponsorblock:true,sponsorblock_uuid:'test',dearrow:true,dislikes:true,remove_super_resolution:true,hide_shorts:true,unlock_resolution:true,h264ify:true,h264ify_disable_webm:true,h264ify_disable_vp8:true,h264ify_disable_vp9:true,h264ify_disable_av1:true,hardware_decoding:true,wayland_hdr:false,low_memory_mode:false,fullscreen:true,features_enabled:true,music_mode_feature:true,music_mode:true,no_window_decorations:true,keep_on_top:false,pause_on_blur:true,touch_overlay:true,controller_support:true,device_discoverability:true};
-  window.__VACUUMTUBE_PLATFORM__={deviceFamily:'Windows.Xbox',deviceName:'Xbox Test',model:'Series X',manufacturer:'Microsoft',osVersion:'10.0.26100',webViewVersion:'144'};
+  window.__VACUUMTUBE_PLATFORM__={deviceFamily:'Windows.Xbox',deviceName:'Xbox Test',model:'Xbox Series X',userAgentModel:'Xbox Series X',manufacturer:'Microsoft',osVersion:'10.0.26100',webViewVersion:'144.0.0.0'};
   window.ytcfg={data_:{HL:'en',INNERTUBE_CLIENT_NAME:'TVHTML5',INNERTUBE_CONTEXT:{client:{clientName:'TVHTML5'}}},set(v){this.data_=v},get(k){return this.data_[k]}};
   history.replaceState=()=>{}; window.environment={}; window.tectonicConfig={}; window._yttv={test:{instance:{resolveCommand:x=>x}}};
   window.__WEBVIEW_HANDLERS__=[];
@@ -132,6 +132,7 @@ try:
     settings_after = evaljs("document.querySelector('#vt-settings-overlay-root').classList.contains('vt-settings-hidden')")
     # XHR modifier smoke test
     xhr_result=evaljs("new Promise(resolve=>{const x=new XMLHttpRequest();x.open('POST','/youtubei/v1/browse');x.onload=()=>resolve(x.responseText);x.send('{}')})",True)
+    identity_request=evaljs("(async()=>{const x=new XMLHttpRequest();await x.open('POST','/youtubei/v1/account/account_menu');await x.send(JSON.stringify({context:{client:{visitorData:'visitor-keep'},user:{delegatedSessionId:'session-keep'}}}));return JSON.parse(x.body)})()",True)
     # JSON mods smoke test
     jsonmods=evaljs("(()=>{let p=JSON.parse('{\"adPlacements\":[1],\"adSlots\":[2],\"entries\":[{\"command\":{\"reelWatchEndpoint\":{\"adClientParams\":{\"isAd\":true}}}},{\"ok\":1}],\"streamingData\":{\"adaptiveFormats\":[{\"xtags\":\"CgcKAnNyEgEx\"},{\"xtags\":\"ok\"}]}}');return p.adPlacements.length===0&&p.adSlots.length===0&&p.entries.length===1&&p.streamingData.adaptiveFormats.length===1})()")
 
@@ -155,8 +156,8 @@ try:
             'consoleErrors': final_logs
         }
 
-    result=evaljs('''JSON.stringify({loaded:!!window.__VACUUMTUBE_XBOX_LOADED__,settingsOverlay:!!document.querySelector("#vt-settings-overlay-root"),settingsParentIsBody:document.querySelector("#vt-settings-overlay-root")?.parentElement===document.body,hasUserstylesTab:!!document.querySelector('.vt-tab[data-tab="userstyles"]'),styleCount:document.querySelectorAll("style").length,webp:window.ytcfg?.data_?.INNERTUBE_CONTEXT?.client?.webpSupport===true,h5vcc:!!window.h5vcc?.dial?.DialServer,controllerA:window.__KEYDOWNS__.includes(13),controllerMap:window.__KEYDOWNS__,controllerUps:window.__KEYUPS__,posts:window.__POSTS__.map(x=>x.channel),logs:window.__TEST_LOGS__})''')
-    data=json.loads(result); data['jsonMods']=bool(jsonmods); data['xhrResult']=json.loads(xhr_result); data['soak']=soak
+    result=evaljs('''JSON.stringify({loaded:!!window.__VACUUMTUBE_XBOX_LOADED__,settingsOverlay:!!document.querySelector("#vt-settings-overlay-root"),settingsParentIsBody:document.querySelector("#vt-settings-overlay-root")?.parentElement===document.body,hasUserstylesTab:!!document.querySelector('.vt-tab[data-tab="userstyles"]'),styleCount:document.querySelectorAll("style").length,webp:window.ytcfg?.data_?.INNERTUBE_CONTEXT?.client?.webpSupport===true,xboxIdentity:window.ytcfg?.data_?.INNERTUBE_CONTEXT?.client,directSignInDisabled:window.tectonicConfig?.featureSwitches?.enableDirectSignIn===false,h5vcc:!!window.h5vcc?.dial?.DialServer,controllerA:window.__KEYDOWNS__.includes(13),controllerMap:window.__KEYDOWNS__,controllerUps:window.__KEYUPS__,posts:window.__POSTS__.map(x=>x.channel),logs:window.__TEST_LOGS__})''')
+    data=json.loads(result); data['jsonMods']=bool(jsonmods); data['xhrResult']=json.loads(xhr_result); data['identityRequest']=identity_request; data['soak']=soak
     # Analyze XHR transformed content
     contents=data['xhrResult']['contents']['tvBrowseRenderer']['content']['tvSurfaceContentRenderer']['content']['sectionListRenderer']['contents']
     data['xhrAdblock']=len(contents)==1 and len(contents[0]['shelfRenderer']['content']['horizontalListRenderer']['items'])==1
@@ -168,6 +169,9 @@ try:
       'noUserstylesTab': data.get('hasUserstylesTab') is False,
       'styles': data.get('styleCount', 0) >= 3,
       'webp': data.get('webp') is True,
+      'xboxIdentity': data.get('xboxIdentity', {}).get('platformDetail') == 'XBOX' and data.get('xboxIdentity', {}).get('deviceMake') == 'Microsoft' and data.get('xboxIdentity', {}).get('deviceModel') == 'Xbox Series X' and data.get('xboxIdentity', {}).get('browserName') == 'Edge',
+      'directSignInOriginal': data.get('directSignInDisabled') is True,
+      'accountTokensPreserved': data.get('identityRequest', {}).get('context', {}).get('client', {}).get('visitorData') == 'visitor-keep' and data.get('identityRequest', {}).get('context', {}).get('user', {}).get('delegatedSessionId') == 'session-keep',
       'h5vcc': data.get('h5vcc') is True,
       'controllerA': data.get('controllerA') is True,
       'controllerMap': data.get('controllerMap') == expected_keycodes,

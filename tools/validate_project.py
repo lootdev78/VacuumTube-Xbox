@@ -146,6 +146,7 @@ def main() -> int:
     require('Compile Include="Services\\MicrophonePermissionService.cs"' in csproj, "Mikrofonservice wird kompiliert")
 
     manifest = (PROJECT / "Package.appxmanifest").read_text(encoding="utf-8")
+    require('Version="1.8.1.1"' in manifest, "Paketversion erlaubt Update über Debug-Build 1.8.1.0")
     for capability in ["internetClient", "internetClientServer", "privateNetworkClientServer", "microphone"]:
         require(f'Name="{capability}"' in manifest, f"Manifest-Capability {capability}")
 
@@ -205,6 +206,16 @@ def main() -> int:
     )
     require("OnNavigationCompleted" in main_cs and "e.IsSuccess" in main_cs, "Navigationsfehler werden sichtbar behandelt")
     require("OnRetryClicked" in main_cs and "RetryButton" in main_xaml, "Startfehler besitzen Wiederholungsweg")
+    require('Xbox; " + DefaultXboxModel' in main_cs and '" Safari/537.36 Edg/" + edgeVersion' in main_cs,
+            "WebView2 verwendet einen Xbox-Series-X-Edge-User-Agent")
+    require('SetHeader("User-Agent"' not in main_cs and "GenericUserAgent" not in main_cs and "Cobalt/" not in main_cs,
+            "User-Agent wird nicht mehr pro Host widersprüchlich überschrieben")
+    require("core.Profile.IsInPrivateModeEnabled" in main_cs and "CoreWebView2TrackingPreventionLevel.Basic" in main_cs,
+            "WebView2 verwendet ein persistentes Nicht-InPrivate-Profil")
+    require("core.Environment.UserDataFolder" in main_cs and "sessionPersistenceEnabled" in main_cs,
+            "WebView2-User-Data-Folder und Sitzungspersistenz sind diagnostizierbar")
+    require("IsInternalAuthUri" in main_cs and "accounts.google.com" in main_cs and "sender.Navigate(uri.AbsoluteUri)" in main_cs,
+            "Google-/YouTube-Anmeldung bleibt im selben WebView2-Cookieprofil")
 
     # Functionality and lifecycle parity checks that were previously only claimed in docs.
     expected_mods = {
@@ -221,6 +232,16 @@ def main() -> int:
     require(loaded_mods == expected_mods,
             "Alle 29 verbleibenden Top-Level-Mods werden geladen" +
             (f" (fehlend={sorted(expected_mods-loaded_mods)}, extra={sorted(loaded_mods-expected_mods)})" if loaded_mods != expected_mods else ""))
+
+    disable_direct_sign_in = (SRC / "preload/modules/disable-direct-sign-in.js").read_text(encoding="utf-8")
+    require("enableDirectSignIn: false" in disable_direct_sign_in,
+            "Originales disable-direct-sign-in-Verhalten bleibt unverändert")
+    identification = (SRC / "preload/modules/identification.js").read_text(encoding="utf-8")
+    require("deviceMake: 'Microsoft'" in identification and "browserName: 'Edge'" in identification and
+            "clientFormFactor: 'LARGE_FORM_FACTOR'" in identification and "brand: 'VacuumTube'" not in identification,
+            "Innertube-Identität ist konsistent auf Microsoft Xbox Series X/Edge gesetzt")
+    require("authentication tokens" in identification and "functions.deepMerge(json.context.client, identity)" in identification,
+            "Identifikationsmod verändert keine Konto- oder Sitzungstoken")
 
     settings_js = (SRC / "preload/modules/settings/index.js").read_text(encoding="utf-8")
     leanback_settings = (SRC / "preload/modules/leanback-settings.js").read_text(encoding="utf-8")

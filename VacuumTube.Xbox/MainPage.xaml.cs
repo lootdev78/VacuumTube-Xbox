@@ -21,9 +21,20 @@ namespace VacuumTube.Xbox
     public sealed partial class MainPage : Page
     {
         private const string YouTubeUrl = "https://www.youtube.com/tv";
-        private const string ClientUserAgent = "Mozilla/5.0 (PS4; Leanback Shell) Cobalt/19.lts.0-qa; compatible; VacuumTube-Xbox/1.8.1";
-        private const string NetworkUserAgent = "Mozilla/5.0 (PS4; Leanback Shell) Cobalt/25.lts.40.1035033; compatible; VacuumTube-Xbox/1.8.1";
-        private const string GenericUserAgent = "VacuumTube-Xbox/1.8.1";
+        private const string DefaultXboxModel = "Xbox Series X";
+        private static readonly HashSet<string> InternalAuthHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "tv.youtube.com",
+            "accounts.youtube.com",
+            "google.com",
+            "www.google.com",
+            "accounts.google.com",
+            "myaccount.google.com",
+            "g.co"
+        };
         private static readonly HashSet<string> ProxyHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "sponsor.ajay.app",
@@ -45,6 +56,11 @@ namespace VacuumTube.Xbox
         private bool _isFocused = true;
         private bool _suspended;
         private bool _webViewSuspended;
+        private string _activeUserAgent = string.Empty;
+        private string _userDataFolder = string.Empty;
+        private string _profileName = string.Empty;
+        private string _profilePath = string.Empty;
+        private bool _inPrivateMode;
 
         public MainPage()
         {
@@ -155,7 +171,27 @@ namespace VacuumTube.Xbox
 #endif
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
-            core.Settings.UserAgent = ClientUserAgent;
+
+            // Use one coherent Xbox Series X user agent for the document, XHR/fetch,
+            // service workers, Google account pages, and YouTube API requests.  The
+            // previous per-request override sent a generic VacuumTube UA to Google
+            // authentication hosts, which can break sign-in and session hand-off.
+            _activeUserAgent = BuildXboxSeriesXUserAgent(core.Environment.BrowserVersionString);
+            core.Settings.UserAgent = _activeUserAgent;
+
+            // WinUI 2/UWP WebView2 uses its default persistent profile and user-data
+            // folder.  Refuse InPrivate mode and keep tracking prevention at Basic so
+            // account cookies, DOM storage, IndexedDB, and permissions can survive app
+            // restarts without disabling normal browser protections.
+            _inPrivateMode = core.Profile.IsInPrivateModeEnabled;
+            if (_inPrivateMode)
+                throw new InvalidOperationException("WebView2 wurde im InPrivate-Modus gestartet; Kontositzungen könnten nicht gespeichert werden.");
+            core.Profile.PreferredTrackingPreventionLevel = CoreWebView2TrackingPreventionLevel.Basic;
+            _userDataFolder = core.Environment.UserDataFolder ?? string.Empty;
+            _profileName = core.Profile.ProfileName ?? string.Empty;
+            _profilePath = core.Profile.ProfilePath ?? string.Empty;
+            ApplicationData.Current.LocalSettings.Values["WebView2UserDataFolder"] = _userDataFolder;
+            ApplicationData.Current.LocalSettings.Values["WebView2ProfileName"] = _profileName;
 
             core.WebMessageReceived += OnWebMessageReceived;
             core.NavigationCompleted += OnNavigationCompleted;
@@ -195,7 +231,6 @@ namespace VacuumTube.Xbox
                     e.Response = sender.Environment.CreateWebResourceResponse(stream, 204, "No Content", "Content-Type: text/plain\r\n");
                     return;
                 }
-                e.Request.Headers.SetHeader("User-Agent", uri.Host.Equals("www.youtube.com", StringComparison.OrdinalIgnoreCase) ? NetworkUserAgent : GenericUserAgent);
             }
             catch { }
         }
@@ -203,7 +238,36 @@ namespace VacuumTube.Xbox
         private async void OnNewWindowRequested(CoreWebView2 sender, CoreWebView2NewWindowRequestedEventArgs e)
         {
             e.Handled = true;
-            if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri)) await Launcher.LaunchUriAsync(uri);
+            if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri)) return;
+
+            // Keep YouTube/Google account navigations in this WebView2 profile. Opening
+            // them in the external Edge app creates a different cookie jar, so the TV
+            // page never receives the authenticated session.
+            if (IsInternalAuthUri(uri))
+            {
+                sender.Navigate(uri.AbsoluteUri);
+                return;
+            }
+
+            await Launcher.LaunchUriAsync(uri);
+        }
+
+        private static bool IsInternalAuthUri(Uri uri)
+        {
+            if (uri == null || !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) return false;
+            if (InternalAuthHosts.Contains(uri.Host)) return true;
+            return uri.Host.EndsWith(".youtube.com", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Host.EndsWith(".google.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildXboxSeriesXUserAgent(string browserVersion)
+        {
+            var edgeVersion = string.IsNullOrWhiteSpace(browserVersion) ? "120.0.0.0" : browserVersion.Split(' ')[0];
+            var major = edgeVersion.Split('.')[0];
+            var chromiumVersion = major + ".0.0.0";
+            return "Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; " + DefaultXboxModel + ") " +
+                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/" + chromiumVersion +
+                   " Safari/537.36 Edg/" + edgeVersion;
         }
 
         private void OnPermissionRequested(CoreWebView2 sender, CoreWebView2PermissionRequestedEventArgs e)
@@ -381,7 +445,13 @@ namespace VacuumTube.Xbox
                 ["suspended"] = _suspended,
                 ["webViewSuspended"] = _webViewSuspended || (Browser.CoreWebView2?.IsSuspended ?? false),
                 ["focused"] = _isFocused,
-                ["webViewVersion"] = Browser.CoreWebView2?.Environment?.BrowserVersionString ?? string.Empty
+                ["webViewVersion"] = Browser.CoreWebView2?.Environment?.BrowserVersionString ?? string.Empty,
+                ["userAgent"] = _activeUserAgent,
+                ["userDataFolder"] = _userDataFolder,
+                ["profileName"] = _profileName,
+                ["profilePath"] = _profilePath,
+                ["inPrivateMode"] = _inPrivateMode,
+                ["sessionPersistenceEnabled"] = !_inPrivateMode && !string.IsNullOrWhiteSpace(_userDataFolder)
             };
         }
 
@@ -394,10 +464,20 @@ namespace VacuumTube.Xbox
             {
                 ["deviceFamily"] = AnalyticsInfo.VersionInfo.DeviceFamily,
                 ["deviceName"] = string.IsNullOrWhiteSpace(device.FriendlyName) ? "Xbox" : device.FriendlyName,
-                ["model"] = string.IsNullOrWhiteSpace(device.SystemProductName) ? "Xbox One / Series X|S" : device.SystemProductName,
+                ["model"] = GetXboxModel(device.SystemProductName),
+                ["userAgentModel"] = DefaultXboxModel,
                 ["manufacturer"] = device.SystemManufacturer,
                 ["osVersion"] = osVersion
             };
+        }
+
+
+        private static string GetXboxModel(string systemProductName)
+        {
+            if (!string.IsNullOrWhiteSpace(systemProductName) &&
+                systemProductName.IndexOf("Xbox", StringComparison.OrdinalIgnoreCase) >= 0)
+                return systemProductName;
+            return DefaultXboxModel;
         }
 
         private static async Task<string> ReadAppTextAsync(string uri)
