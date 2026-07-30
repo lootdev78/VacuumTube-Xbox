@@ -6,20 +6,20 @@ name: Xbox Debug App
     branches:
       - main
     paths:
-      - 'VacuumTube.Xbox/**'
-      - 'src/**'
-      - 'locale/**'
-      - 'tools/**'
-      - 'VacuumTube.Xbox.sln'
-      - '.github/workflows/xbox-debug-app.yml'
+      - "VacuumTube.Xbox/**"
+      - "src/**"
+      - "locale/**"
+      - "tools/**"
+      - "VacuumTube.Xbox.sln"
+      - ".github/workflows/xbox-debug-app.yml"
   pull_request:
     paths:
-      - 'VacuumTube.Xbox/**'
-      - 'src/**'
-      - 'locale/**'
-      - 'tools/**'
-      - 'VacuumTube.Xbox.sln'
-      - '.github/workflows/xbox-debug-app.yml'
+      - "VacuumTube.Xbox/**"
+      - "src/**"
+      - "locale/**"
+      - "tools/**"
+      - "VacuumTube.Xbox.sln"
+      - ".github/workflows/xbox-debug-app.yml"
 
 permissions:
   contents: read
@@ -33,11 +33,11 @@ jobs:
     name: Build signed Debug APPX (x64)
     runs-on: windows-2022
     timeout-minutes: 45
+
     env:
       SOLUTION: VacuumTube.Xbox.sln
       CONFIGURATION: Debug
       PLATFORM: x64
-      NUGET_PACKAGES: ${{ runner.temp }}\VacuumTubeNuGetPackages
 
     steps:
       - name: Checkout
@@ -46,7 +46,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
@@ -56,7 +56,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v6
         with:
-          path: ${{ env.NUGET_PACKAGES }}
+          path: ${{ runner.temp }}\VacuumTubeNuGetPackages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
           restore-keys: |
             nuget-${{ runner.os }}-
@@ -65,104 +65,240 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force -Path artifacts\ci | Out-Null
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path artifacts\ci | Out-Null
+
           @(
             "Runner: $env:ImageOS / $env:ImageVersion"
             "MSBuild: $((Get-Command msbuild).Source)"
             "Python: $(python --version 2>&1)"
             "Node: $(node --version 2>&1)"
+            "NuGet packages: $env:RUNNER_TEMP\VacuumTubeNuGetPackages"
           ) | Tee-Object -FilePath artifacts\ci\toolchain.txt
-          msbuild -version | Tee-Object -FilePath artifacts\ci\msbuild-version.txt
+
+          msbuild -version |
+            Tee-Object -FilePath artifacts\ci\msbuild-version.txt
 
       - name: Build JavaScript bundle
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python tools\build_bundle.py 2>&1 | Tee-Object artifacts\ci\build-bundle.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          python tools\build_bundle.py 2>&1 |
+            Tee-Object artifacts\ci\build-bundle.log
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Validate sources and mods
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python tools\analyze_mods.py 2>&1 | Tee-Object artifacts\ci\analyze-mods.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools\validate_project.py 2>&1 | Tee-Object artifacts\ci\validate-project.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node tools\test_sponsorblock_adapter.js 2>&1 | Tee-Object artifacts\ci\sponsorblock.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          python tools\analyze_mods.py 2>&1 |
+            Tee-Object artifacts\ci\analyze-mods.log
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          python tools\validate_project.py 2>&1 |
+            Tee-Object artifacts\ci\validate-project.log
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          node tools\test_sponsorblock_adapter.js 2>&1 |
+            Tee-Object artifacts\ci\sponsorblock.log
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Validate JavaScript syntax
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           node --check VacuumTube.Xbox\Web\vacuumtube.bundle.js
-          Get-ChildItem src -Recurse -Filter *.js | ForEach-Object {
-            node --check $_.FullName
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
           }
+
+          Get-ChildItem src -Recurse -Filter *.js |
+            ForEach-Object {
+              node --check $_.FullName
+
+              if ($LASTEXITCODE -ne 0) {
+                exit $LASTEXITCODE
+              }
+            }
 
       - name: Restore NuGet packages
         shell: powershell
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}\VacuumTubeNuGetPackages
         run: |
           $ErrorActionPreference = 'Stop'
-          msbuild $env:SOLUTION /t:Restore /m `
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $env:NUGET_PACKAGES | Out-Null
+
+          msbuild $env:SOLUTION `
+            /t:Restore `
+            /m `
             /p:Configuration=$env:CONFIGURATION `
             /p:Platform=$env:PLATFORM `
-            /verbosity:minimal 2>&1 | Tee-Object artifacts\ci\nuget-restore.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            /p:RestorePackagesPath="$env:NUGET_PACKAGES" `
+            /verbosity:minimal 2>&1 |
+              Tee-Object artifacts\ci\nuget-restore.log
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Generate ephemeral signing password
         shell: powershell
         run: |
-          $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
+          $ErrorActionPreference = 'Stop'
+
+          $rng = New-Object `
+            System.Security.Cryptography.RNGCryptoServiceProvider
+
           $bytes = New-Object byte[] 32
-          try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+
+          try {
+            $rng.GetBytes($bytes)
+          }
+          finally {
+            $rng.Dispose()
+          }
+
           $password = [Convert]::ToBase64String($bytes)
+
           Write-Output "::add-mask::$password"
-          "VT_CERT_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          "VT_CERT_PASSWORD=$password" |
+            Out-File `
+              -FilePath $env:GITHUB_ENV `
+              -Encoding utf8 `
+              -Append
 
       - name: Compile and package signed Debug APPX
         shell: powershell
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}\VacuumTubeNuGetPackages
         run: |
           $ErrorActionPreference = 'Stop'
+
           .\tools\Build-Xbox.ps1 `
             -Configuration $env:CONFIGURATION `
             -Platform $env:PLATFORM `
             -Package `
             -GenerateTestCertificate `
             -CertificatePassword $env:VT_CERT_PASSWORD `
-            -NoRestore 2>&1 | Tee-Object artifacts\ci\msbuild-debug-package.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            -NoRestore 2>&1 |
+              Tee-Object artifacts\ci\msbuild-debug-package.log
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Prepare downloadable Debug package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $drop = 'artifacts\GitHubDebugDrop'
-          New-Item -ItemType Directory -Force -Path $drop | Out-Null
-          Copy-Item artifacts\AppxPackages -Destination $drop\AppxPackages -Recurse -Force
-          Copy-Item artifacts\VacuumTube-Xbox-Development.cer -Destination $drop -Force
-          if (Test-Path VacuumTube.Xbox\bin\x64\Debug) {
-            Copy-Item VacuumTube.Xbox\bin\x64\Debug -Destination $drop\Symbols -Recurse -Force
-          }
-          Remove-Item artifacts\*.pfx -Force -ErrorAction SilentlyContinue
 
-          $hashFiles = Get-ChildItem $drop -Recurse -File | Where-Object {
-            $_.Extension -in '.appx', '.msix', '.appxbundle', '.msixbundle', '.cer', '.pdb'
+          $drop = 'artifacts\GitHubDebugDrop'
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $drop | Out-Null
+
+          if (-not (Test-Path artifacts\AppxPackages)) {
+            throw 'APPX/MSIX package directory was not created.'
           }
+
+          Copy-Item `
+            artifacts\AppxPackages `
+            -Destination $drop\AppxPackages `
+            -Recurse `
+            -Force
+
+          if (Test-Path artifacts\VacuumTube-Xbox-Development.cer) {
+            Copy-Item `
+              artifacts\VacuumTube-Xbox-Development.cer `
+              -Destination $drop `
+              -Force
+          }
+
+          if (Test-Path VacuumTube.Xbox\bin\x64\Debug) {
+            Copy-Item `
+              VacuumTube.Xbox\bin\x64\Debug `
+              -Destination $drop\Symbols `
+              -Recurse `
+              -Force
+          }
+
+          Remove-Item `
+            artifacts\*.pfx `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          $resolvedDrop = (Resolve-Path $drop).Path
+
+          $hashFiles = Get-ChildItem $drop -Recurse -File |
+            Where-Object {
+              $_.Extension -in @(
+                '.appx',
+                '.msix',
+                '.appxbundle',
+                '.msixbundle',
+                '.cer',
+                '.pdb'
+              )
+            }
+
           $hashLines = foreach ($file in $hashFiles) {
-            $hash = Get-FileHash -Algorithm SHA256 -Path $file.FullName
-            $relative = $file.FullName.Substring((Resolve-Path $drop).Path.Length + 1)
+            $hash = Get-FileHash `
+              -Algorithm SHA256 `
+              -Path $file.FullName
+
+            $relative = $file.FullName.Substring(
+              $resolvedDrop.Length + 1
+            )
+
             "$($hash.Hash.ToLowerInvariant())  $relative"
           }
-          $hashLines | Set-Content -Encoding utf8 "$drop\SHA256SUMS.txt"
 
-          "### VacuumTube Xbox Debug build" | Out-File $env:GITHUB_STEP_SUMMARY -Append
-          "- Configuration: **$env:CONFIGURATION**" | Out-File $env:GITHUB_STEP_SUMMARY -Append
-          "- Platform: **$env:PLATFORM**" | Out-File $env:GITHUB_STEP_SUMMARY -Append
-          "- Package: signed development APPX/MSIX in the uploaded artifact" | Out-File $env:GITHUB_STEP_SUMMARY -Append
-          "- Public certificate: `VacuumTube-Xbox-Development.cer`" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          $hashLines |
+            Set-Content `
+              -Encoding utf8 `
+              "$drop\SHA256SUMS.txt"
+
+          "### VacuumTube Xbox Debug build" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+          "- Configuration: **$env:CONFIGURATION**" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+          "- Platform: **$env:PLATFORM**" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+          "- Package: signed development APPX/MSIX" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+          "- Public certificate: ``VacuumTube-Xbox-Development.cer``" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Upload Debug app
         uses: actions/upload-artifact@v7
