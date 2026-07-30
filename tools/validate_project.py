@@ -18,6 +18,29 @@ SRC = ROOT / "src"
 ERRORS: list[str] = []
 CHECKS: list[str] = []
 
+# Generated/cache directories may contain folders whose names end in .json
+# (for example .nuget/packages/newtonsoft.json). They are not project inputs and
+# must never be parsed or scanned as source files.
+IGNORED_DIRECTORY_NAMES = {
+    ".git", ".nuget", ".vs", ".idea",
+    "artifacts", "bin", "obj", "node_modules", "packages",
+}
+
+
+def is_project_file(path: Path) -> bool:
+    """Return True only for regular source files outside generated/cache trees."""
+    if not path.is_file():
+        return False
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError:
+        return False
+    return not any(part.lower() in IGNORED_DIRECTORY_NAMES for part in relative.parts[:-1])
+
+
+def project_files(pattern: str) -> list[Path]:
+    return [path for path in ROOT.rglob(pattern) if is_project_file(path)]
+
 
 def ok(message: str) -> None:
     CHECKS.append(message)
@@ -107,7 +130,7 @@ def main() -> int:
         except Exception as exc: fail(f"XML/XAML ungültig: {path.relative_to(ROOT)}: {exc}")
     if not any(e.startswith("XML/XAML") for e in ERRORS): ok("XML, XAML und Manifest sind wohlgeformt")
 
-    for path in ROOT.rglob("*.json"):
+    for path in project_files("*.json"):
         try: json.loads(path.read_text(encoding="utf-8"))
         except Exception as exc: fail(f"JSON ungültig: {path.relative_to(ROOT)}: {exc}")
     if not any(e.startswith("JSON") for e in ERRORS): ok("Alle JSON-Dateien sind parsebar")
@@ -133,9 +156,9 @@ def main() -> int:
         require(path.is_file() and path.stat().st_size > 0, f"Asset {asset}")
 
     # No updater/Electron/Node runtime dependencies in executable source.
-    scanned = []
+    scanned: list[Path] = []
     for suffix in ("*.js", "*.cs", "*.xaml", "*.csproj", "*.json"):
-        scanned.extend(ROOT.rglob(suffix))
+        scanned.extend(project_files(suffix))
     banned = {
         "electron-updater": re.compile(r"electron-updater", re.I),
         "Electron runtime": re.compile(r"(?:from|require\s*\()\s*['\"]electron['\"]", re.I),

@@ -37,7 +37,7 @@ jobs:
       SOLUTION: VacuumTube.Xbox.sln
       CONFIGURATION: Debug
       PLATFORM: x64
-      NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+      NUGET_PACKAGES: ${{ runner.temp }}\VacuumTubeNuGetPackages
 
     steps:
       - name: Checkout
