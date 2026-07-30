@@ -268,14 +268,36 @@ def main() -> int:
     workflow = (ROOT / ".github/workflows/xbox-debug-app.yml").read_text(encoding="utf-8")
     require("runs-on: windows-2022" in workflow and "Build-Xbox.ps1" in workflow,
             "Windows-CI nutzt den festen UWP-Buildrunner")
+    require("actions/checkout@v6" in workflow,
+            "GitHub-CI verwendet einen veröffentlichten Checkout-Major")
+    require("actions/setup-python@v6" in workflow,
+            "GitHub-CI verwendet einen veröffentlichten Setup-Python-Major")
+    require("actions/cache@v5" in workflow,
+            "GitHub-CI verwendet einen veröffentlichten Cache-Major")
     require("microsoft/setup-msbuild@v3" in workflow and "/t:Restore" in workflow,
             "GitHub-CI richtet MSBuild ein und führt echten NuGet-Restore aus")
+    require("${{ runner.temp }}" not in workflow and "github.workspace" in workflow,
+            "NuGet-Pfad verwendet einen im Job-Environment gültigen GitHub-Kontext")
     require("-Configuration $env:CONFIGURATION" in workflow and "CONFIGURATION: Debug" in workflow,
             "GitHub-CI erzeugt standardmäßig eine Debug-App")
+    require("-GenerateTestCertificate" in workflow and "VT_CERT_PASSWORD" in workflow,
+            "GitHub-CI erzeugt Zertifikat und Passwort automatisch")
     require("actions/upload-artifact@v7" in workflow and "VacuumTube-Xbox-Debug-x64" in workflow,
             "GitHub-CI veröffentlicht das Debug-Paket als Artefakt")
-    require("Remove-Item artifacts\\*.pfx" in workflow,
+
+    removes_private_key = (
+        "Remove-Item artifacts\\*.pfx" in workflow
+        or "Remove-Item artifacts\\VacuumTube-Xbox-Development.pfx" in workflow
+    )
+    excludes_private_keys = all(
+        f"!artifacts/GitHubDebugDrop/**/*.{extension}" in workflow
+        for extension in ("pfx", "pvk", "key", "pem")
+    )
+    verifies_upload_directory = "Private signing material detected in the upload directory" in workflow
+    require(removes_private_key and excludes_private_keys and verifies_upload_directory,
             "Privater CI-Signaturschlüssel wird nicht als Artefakt veröffentlicht")
+    require("Existing certificate or license required: **no**" in workflow,
+            "Debug-Build benötigt keine vorhandene Zertifikat- oder Lizenzdatei")
 
     print(f"\n{len(CHECKS)} Prüfungen bestanden, {len(ERRORS)} fehlgeschlagen.")
     if ERRORS:

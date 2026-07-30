@@ -38,11 +38,13 @@ jobs:
       SOLUTION: VacuumTube.Xbox.sln
       CONFIGURATION: Debug
       PLATFORM: x64
-      NUGET_PACKAGES: D:\a\_temp\VacuumTubeNuGetPackages
+      # Keep the NuGet cache in the workspace; generated directories are ignored
+      # by the project validator and are never uploaded as build artifacts.
+      NUGET_PACKAGES: '${{ github.workspace }}\.nuget\packages'
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -55,9 +57,9 @@ jobs:
           msbuild-architecture: x64
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
-          path: D:\a\_temp\VacuumTubeNuGetPackages
+          path: ${{ env.NUGET_PACKAGES }}
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
           restore-keys: |
             nuget-${{ runner.os }}-
@@ -180,11 +182,15 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
+          $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
           $bytes = New-Object byte[] 32
 
-          [System.Security.Cryptography.RandomNumberGenerator]::Fill(
-            $bytes
-          )
+          try {
+            $rng.GetBytes($bytes)
+          }
+          finally {
+            $rng.Dispose()
+          }
 
           $password = [Convert]::ToBase64String($bytes)
 
@@ -214,31 +220,28 @@ jobs:
             exit $LASTEXITCODE
           }
 
-      - name: Remove private signing keys before artifact creation
+      - name: Remove private signing key
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
 
-          Get-ChildItem `
-            -Path . `
-            -Recurse `
-            -File `
-            -Include *.pfx,*.pvk,*.key,*.pem `
-            -ErrorAction SilentlyContinue |
-              ForEach-Object {
-                Write-Host "Removing private key: $($_.FullName)"
-                Remove-Item $_.FullName -Force
-              }
+          # Explicitly remove the temporary private key. Only the public .cer
+          # and the already signed package are published.
+          Remove-Item artifacts\*.pfx -Force -ErrorAction SilentlyContinue
 
           $privateKeys = Get-ChildItem `
-            -Path . `
+            -Path artifacts `
             -Recurse `
             -File `
             -Include *.pfx,*.pvk,*.key,*.pem `
             -ErrorAction SilentlyContinue
 
           if ($privateKeys) {
-            throw "Private signing keys remain in the workspace."
+            $privateKeys | ForEach-Object {
+              Write-Error "Private signing material remains: $($_.FullName)"
+            }
+
+            throw 'Private signing material remains in artifacts.'
           }
 
       - name: Prepare downloadable Debug package
@@ -247,6 +250,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           $drop = 'artifacts\GitHubDebugDrop'
+          $packageSource = 'artifacts\AppxPackages'
+          $publicCertificate = 'artifacts\VacuumTube-Xbox-Development.cer'
 
           if (Test-Path $drop) {
             Remove-Item $drop -Recurse -Force
@@ -255,22 +260,34 @@ jobs:
           New-Item -ItemType Directory -Force -Path $drop |
             Out-Null
 
-          if (-not (Test-Path artifacts\AppxPackages)) {
+          if (-not (Test-Path $packageSource)) {
             throw 'APPX/MSIX package directory was not created.'
           }
 
+          $packages = Get-ChildItem `
+            -Path $packageSource `
+            -Recurse `
+            -File `
+            -Include *.appx,*.msix,*.appxbundle,*.msixbundle
+
+          if (-not $packages) {
+            throw 'MSBuild completed, but no APPX/MSIX package was found.'
+          }
+
           Copy-Item `
-            artifacts\AppxPackages `
+            $packageSource `
             -Destination $drop\AppxPackages `
             -Recurse `
             -Force
 
-          if (Test-Path artifacts\VacuumTube-Xbox-Development.cer) {
-            Copy-Item `
-              artifacts\VacuumTube-Xbox-Development.cer `
-              -Destination $drop `
-              -Force
+          if (-not (Test-Path $publicCertificate)) {
+            throw 'The public development certificate was not generated.'
           }
+
+          Copy-Item `
+            $publicCertificate `
+            -Destination $drop `
+            -Force
 
           if (Test-Path VacuumTube.Xbox\bin\x64\Debug) {
             New-Item `
@@ -292,27 +309,18 @@ jobs:
                 }
           }
 
-          Get-ChildItem `
-            -Path $drop `
-            -Recurse `
-            -File `
-            -Include *.pfx,*.pvk,*.key,*.pem `
-            -ErrorAction SilentlyContinue |
-              Remove-Item -Force
-
-          $privateKeysInDrop = Get-ChildItem `
+          $forbiddenFiles = Get-ChildItem `
             -Path $drop `
             -Recurse `
             -File `
             -Include *.pfx,*.pvk,*.key,*.pem `
             -ErrorAction SilentlyContinue
 
-          if ($privateKeysInDrop) {
-            throw 'Private signing keys must not be published.'
+          if ($forbiddenFiles) {
+            throw 'Private signing material detected in the upload directory.'
           }
 
           $resolvedDrop = (Resolve-Path $drop).Path
-
           $hashFiles = Get-ChildItem $drop -Recurse -File |
             Where-Object {
               $_.Extension -in @(
@@ -321,20 +329,13 @@ jobs:
                 '.appxbundle',
                 '.msixbundle',
                 '.cer',
-                '.pdb',
-                '.ps1'
+                '.pdb'
               )
             }
 
           $hashLines = foreach ($file in $hashFiles) {
-            $hash = Get-FileHash `
-              -Algorithm SHA256 `
-              -Path $file.FullName
-
-            $relative = $file.FullName.Substring(
-              $resolvedDrop.Length + 1
-            )
-
+            $hash = Get-FileHash -Algorithm SHA256 -Path $file.FullName
+            $relative = $file.FullName.Substring($resolvedDrop.Length + 1)
             "$($hash.Hash.ToLowerInvariant())  $relative"
           }
 
@@ -344,40 +345,18 @@ jobs:
               "$drop\SHA256SUMS.txt"
 
           @(
-            "### VacuumTube Xbox Debug build"
-            ""
+            '### VacuumTube Xbox Debug build'
+            ''
             "- Configuration: **$env:CONFIGURATION**"
             "- Platform: **$env:PLATFORM**"
-            "- Package: signed development APPX/MSIX"
-            "- Public certificate included: **yes**"
-            "- Private signing key included: **no**"
+            '- Package: signed development APPX/MSIX'
+            '- Public certificate included: **yes**'
+            '- Existing certificate or license required: **no**'
+            '- Private signing key included: **no**'
           ) | Out-File `
                 $env:GITHUB_STEP_SUMMARY `
                 -Append `
                 -Encoding utf8
-
-      - name: Verify artifact contains no private key
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          $forbiddenFiles = Get-ChildItem `
-            -Path artifacts\GitHubDebugDrop `
-            -Recurse `
-            -File `
-            -Include *.pfx,*.pvk,*.key,*.pem `
-            -ErrorAction SilentlyContinue
-
-          if ($forbiddenFiles) {
-            $forbiddenFiles |
-              ForEach-Object {
-                Write-Error "Forbidden artifact: $($_.FullName)"
-              }
-
-            throw 'Private signing material detected in artifact.'
-          }
-
-          Write-Host 'No private signing keys are present in the artifact.'
 
       - name: Upload Debug app
         uses: actions/upload-artifact@v7
