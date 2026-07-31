@@ -1,0 +1,545 @@
+/* VacuumTube website toasts: fixed YouTube-TV-style presentation */
+#vtw-toast-stack {
+  position: fixed;
+  z-index: 2147483647;
+  top: max(28px, 3.5vh);
+  right: max(28px, 3vw);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  width: min(500px, calc(100vw - 48px));
+  pointer-events: none;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.vtw-site-toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: fit-content;
+  min-width: 300px;
+  max-width: 100%;
+  padding: 16px 19px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 14px;
+  background: rgba(28,28,28,.97);
+  color: #fff;
+  box-shadow: 0 12px 36px rgba(0,0,0,.5);
+  opacity: 0;
+  transform: translate3d(18px, -6px, 0);
+  transition: opacity .2s ease, transform .2s ease;
+  pointer-events: auto;
+}
+.vtw-site-toast.visible { opacity: 1; transform: translate3d(0,0,0); }
+.vtw-site-toast-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #444;
+  font-size: 18px;
+  font-weight: 800;
+}
+.vtw-toast-success .vtw-site-toast-icon { background: #2e7d4f; }
+.vtw-toast-error .vtw-site-toast-icon { background: #a73535; }
+.vtw-toast-action .vtw-site-toast-icon { background: #385f9e; }
+.vtw-site-toast-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.vtw-site-toast-copy strong { font-size: 18px; line-height: 1.25; }
+.vtw-site-toast-copy > span { margin-top: 3px; color: #d2d2d2; font-size: 14px; line-height: 1.35; }
+.vtw-site-toast-actions { display: flex; gap: 8px; margin-left: 4px; }
+.vtw-site-toast-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 19px;
+  background: #fff;
+  color: #171717;
+  font: 700 13px Arial, sans-serif;
+  cursor: pointer;
+}
+.vtw-site-toast-counter {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 13px;
+  background: #555;
+  color: #fff;
+  font: 700 12px Arial, sans-serif;
+}
+
+/* Return YouTube Dislike: integrated into YouTube TV player actions. */
+#vtw-dislike-badge {
+  position: static !important;
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: .45em;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  box-shadow: none;
+  opacity: 0;
+  transform: none;
+  transition: opacity .15s ease;
+  pointer-events: none;
+}
+#vtw-dislike-badge.visible { opacity: 1; }
+#vtw-dislike-player-button.vtw-native-player-action {
+  position: static !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+  opacity: 1;
+}
+
+/* Content/navigation fallbacks */
+.vtw-short-hidden,
+.vtw-nav-hidden,
+[data-vtw-nav-hidden="true"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Volume */
+#vtw-volume {
+  position: fixed;
+  z-index: 2147483645;
+  left: 50%;
+  bottom: 9vh;
+  transform: translateX(-50%) translateY(12px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 300px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  background: rgba(20,20,20,.94);
+  color: #fff;
+  font: 700 18px Arial, sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transition: .18s ease;
+}
+#vtw-volume.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+#vtw-volume-track { height: 8px; flex: 1; border-radius: 8px; background: rgba(255,255,255,.25); overflow: hidden; }
+#vtw-volume-fill { height: 100%; background: #fff; }
+
+/* Touch controller */
+#vtw-touch {
+  position: fixed;
+  z-index: 2147483644;
+  right: 22px;
+  bottom: 22px;
+  display: grid;
+  grid-template-columns: repeat(3, 62px);
+  grid-template-rows: repeat(3, 62px);
+  gap: 9px;
+  opacity: .86;
+}
+#vtw-touch button {
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 50%;
+  background: rgba(20,20,20,.86);
+  color: #fff;
+  font-size: 26px;
+  touch-action: manipulation;
+}
+#vtw-touch .up { grid-column: 2; grid-row: 1; }
+#vtw-touch .left { grid-column: 1; grid-row: 2; }
+#vtw-touch .ok { grid-column: 2; grid-row: 2; font-size: 15px; font-weight: 700; }
+#vtw-touch .right { grid-column: 3; grid-row: 2; }
+#vtw-touch .down { grid-column: 2; grid-row: 3; }
+#vtw-touch .back { grid-column: 1; grid-row: 3; font-size: 19px; }
+.vt-settings-open #vtw-touch { display: none !important; }
+
+/* VacuumTube settings overlay in YouTube TV visual language */
+#vt-settings-inline-root,
+#vt-settings-inline-root * { box-sizing: border-box; }
+#vt-settings-inline-root {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: min(78vh, 900px);
+  color: #fff;
+  background: #0f0f0f;
+  z-index: 1;
+  opacity: 1;
+  transition: opacity .12s ease;
+}
+#vt-settings-inline-root.vt-settings-hidden { display: none !important; }
+.vtw-inline-settings-host { overflow: hidden !important; }
+.vt-settings-backdrop { display: none !important; }
+.vt-settings-container {
+  position: relative;
+  width: 100%;
+  min-height: min(78vh, 900px);
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0f0f0f;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.vt-settings-header {
+  display: flex;
+  align-items: center;
+  min-height: 88px;
+  padding: 16px 24px 16px 28px;
+  border-bottom: 1px solid #303030;
+  background: #1c1c1c;
+}
+.vt-settings-brand { display: flex; align-items: center; gap: 15px; }
+.vt-settings-logo {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #fff;
+  color: #171717;
+  font-size: 26px;
+  font-weight: 900;
+}
+.vt-settings-title-wrap { display: flex; flex-direction: column; gap: 3px; }
+.vt-settings-title { font-size: 29px; font-weight: 700; letter-spacing: -.3px; }
+.vt-settings-version { color: #a8a8a8; font-size: 13px; }
+.vt-settings-hint { margin-left: auto; margin-right: 20px; color: #aaa; font-size: 14px; }
+.vt-settings-close,
+.vt-tab,
+.vt-setting-item,
+.vt-button {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  outline: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.vt-settings-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: transparent;
+  color: #c6c6c6;
+  font-size: 22px;
+}
+.vt-settings-close:hover,
+.vt-settings-close.vt-ui-focused { background: #3a3a3a; color: #fff; box-shadow: inset 0 0 0 2px #fff; }
+.vt-settings-body { display: flex; flex: 1; min-height: 0; }
+.vt-tabs-viewport {
+  flex: 0 0 330px;
+  min-width: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-right: 1px solid #303030;
+  background: #181818;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+.vt-settings-tabs { display: flex; flex-direction: column; gap: 5px; padding: 16px; }
+.vt-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-height: 66px;
+  padding: 13px 17px;
+  border-radius: 11px;
+  background: transparent;
+}
+.vt-tab:hover { background: #292929; }
+.vt-tab.vt-tab-selected { background: #f1f1f1; }
+.vt-tab.vt-tab-selected .vt-tab-label { color: #171717; }
+.vt-tab.vt-tab-selected .vt-tab-subtitle { color: #555; }
+.vt-tab.vt-ui-focused { box-shadow: 0 0 0 3px #fff; }
+.vt-tab-label { color: #fff; font-size: 19px; font-weight: 700; }
+.vt-tab-subtitle { color: #9d9d9d; font-size: 13px; line-height: 1.25; }
+.vt-settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: #111;
+}
+.vt-content-panel {
+  display: none;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+.vt-content-panel.vt-panel-active { display: block; }
+.vt-panel-list { display: flex; flex-direction: column; gap: 10px; padding: 24px 28px 36px; }
+.vt-setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 94px;
+  padding: 18px 22px;
+  border-radius: 13px;
+  background: #252525;
+  touch-action: manipulation;
+}
+.vt-setting-item:hover { background: #333; }
+.vt-setting-item.vt-ui-focused { background: #393939; box-shadow: inset 0 0 0 3px #fff; }
+.vt-setting-item-inactive,
+.vt-setting-item:disabled { opacity: .42; cursor: default; }
+.vt-setting-item-inactive:hover,
+.vt-setting-item:disabled:hover { background: #252525; }
+.vt-setting-info { display: flex; flex: 1; flex-direction: column; min-width: 0; margin-right: 30px; }
+.vt-setting-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 7px; }
+.vt-setting-title { font-size: 20px; font-weight: 700; line-height: 1.25; }
+.vt-setting-description { max-width: 760px; color: #b8b8b8; font-size: 14px; line-height: 1.45; }
+.vt-setting-control { display: flex; flex: 0 0 auto; align-items: center; }
+.vt-setting-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  background: #464646;
+  color: #eee;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.vt-status-active { background: #245f3d; color: #d8ffe7; }
+.vt-status-loading { background: #675221; color: #fff0b9; }
+.vt-status-error { background: #7e2929; color: #ffe0e0; }
+.vt-status-warning { background: #6c5121; color: #fff0ba; }
+.vt-status-disabled { background: #3e3e3e; color: #bdbdbd; }
+.vt-toggle { display: block; width: 62px; height: 34px; }
+.vt-toggle-track { position: relative; display: block; width: 100%; height: 100%; border-radius: 17px; background: #575757; transition: background .18s ease; }
+.vt-toggle-thumb { position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: transform .18s ease, background .18s ease; }
+.vt-toggle.vt-toggle-on .vt-toggle-track { background: #fff; }
+.vt-toggle.vt-toggle-on .vt-toggle-thumb { transform: translateX(28px); background: #1c1c1c; }
+.vt-choice-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+  justify-content: flex-end;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.vt-choice-chevron { color: #aaa; font-size: 30px; line-height: 1; }
+.vt-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 62px;
+  padding: 0 20px;
+  border-radius: 12px;
+  background: #2b2b2b;
+  font-size: 17px;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+.vt-button:hover { background: #363636; }
+.vt-button.vt-ui-focused { box-shadow: inset 0 0 0 3px #fff; }
+.vt-panel-heading { margin: 17px 2px 2px; color: #fff; font-size: 19px; }
+.vt-diagnostic-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 26px;
+  min-height: 52px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #202020;
+}
+.vt-diagnostic-label { color: #a8a8a8; font-size: 14px; }
+.vt-diagnostic-value { max-width: 68%; color: #fff; font-size: 14px; text-align: right; overflow-wrap: anywhere; }
+.vt-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.vt-status-card { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; padding: 15px 17px; border-radius: 11px; background: #202020; }
+.vt-status-card-name { font-size: 15px; font-weight: 700; text-transform: capitalize; }
+.vt-status-card-message { grid-column: 1 / -1; color: #aaa; font-size: 12px; line-height: 1.35; }
+.vt-diagnostics-loading,
+.vt-diagnostics-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 20px;
+  border-radius: 12px;
+  background: #202020;
+  color: #bbb;
+  font-size: 14px;
+}
+.vt-diagnostics-empty strong { color: #fff; font-size: 17px; }
+.vt-diagnostics-error { border: 1px solid #743838; }
+.vt-log-list { display: flex; flex-direction: column; gap: 8px; }
+.vt-log-entry { display: flex; flex-direction: column; gap: 5px; padding: 13px 15px; border-left: 4px solid #555; border-radius: 8px; background: #1f1f1f; }
+.vt-log-error { border-left-color: #a94444; }
+.vt-log-warn { border-left-color: #b58a34; }
+.vt-log-info { border-left-color: #4778a8; }
+.vt-log-meta { color: #8f8f8f; font-size: 11px; }
+.vt-log-message { color: #eee; font-size: 13px; line-height: 1.35; }
+.vt-log-details { color: #a9a9a9; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; overflow-wrap: anywhere; }
+
+@media (max-width: 980px) {
+  .vt-settings-container { width: 96vw; height: 92vh; }
+  .vt-tabs-viewport { flex-basis: 245px; min-width: 210px; }
+  .vt-settings-hint { display: none; }
+  .vt-panel-list { padding: 18px; }
+  .vt-setting-item { padding: 16px 18px; }
+  .vt-choice-value { min-width: 150px; }
+}
+
+@media (max-width: 680px) {
+  .vt-settings-container { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
+  .vt-settings-header { min-height: 72px; padding: 12px 14px; }
+  .vt-settings-logo { width: 42px; height: 42px; }
+  .vt-settings-title { font-size: 23px; }
+  .vt-tabs-viewport { flex: 0 0 38%; min-width: 150px; }
+  .vt-settings-tabs { padding: 10px; }
+  .vt-tab { min-height: 58px; padding: 10px 12px; }
+  .vt-tab-label { font-size: 16px; }
+  .vt-tab-subtitle { display: none; }
+  .vt-panel-list { padding: 12px; }
+  .vt-setting-item { flex-direction: column; align-items: stretch; gap: 14px; min-height: 0; }
+  .vt-setting-info { margin-right: 0; }
+  .vt-setting-control { justify-content: flex-end; }
+  .vt-status-grid { grid-template-columns: 1fr; }
+}
+
+/* Player-native mod surfaces */
+#vtw-sponsor-markers {
+  position: absolute;
+  left: 3.5%;
+  right: 3.5%;
+  bottom: 7.4%;
+  height: 5px;
+  z-index: 69;
+  pointer-events: none;
+}
+#vtw-sponsor-markers .vtw-sponsor-marker {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 2px;
+  background: #00d36f;
+  opacity: .95;
+}
+
+/* 0.5.0 native player integration and selectable settings theme */
+.vtw-player-hidden { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+.vtw-hide-dislikes #vtw-dislike-badge, .vtw-hide-dislikes #vtw-dislike-player-button { display: none !important; }
+.vtw-hide-sponsor-markers #vtw-sponsor-markers { display: none !important; }
+
+/* RYD is attached to the detected player action surface. */
+#vtw-sponsor-markers {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(54px, 6.4vh);
+  height: 7px;
+  z-index: 65;
+  pointer-events: none;
+}
+#vtw-sponsor-markers .vtw-sponsor-marker {
+  position: absolute;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 2px;
+  background: #00d400;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.3);
+}
+
+/* Original: follows YouTube TV spacing and flat list treatment. */
+#vt-settings-inline-root[data-theme="original"] { background: transparent; }
+#vt-settings-inline-root[data-theme="original"] .vt-settings-container,
+#vt-settings-inline-root[data-theme="original"] .vt-settings-content { background: transparent; }
+#vt-settings-inline-root[data-theme="original"] .vt-settings-header { background: transparent; border-bottom-color: rgba(255,255,255,.12); }
+#vt-settings-inline-root[data-theme="original"] .vt-tabs-viewport { background: transparent; border-right-color: rgba(255,255,255,.12); }
+#vt-settings-inline-root[data-theme="original"] .vt-setting-item { border-radius: 0; background: transparent; border-bottom: 1px solid rgba(255,255,255,.1); }
+#vt-settings-inline-root[data-theme="original"] .vt-setting-item:hover,
+#vt-settings-inline-root[data-theme="original"] .vt-setting-item.vt-ui-focused { background: rgba(255,255,255,.13); }
+
+/* Custom: still TV-safe, but more compact and visually separated. */
+#vt-settings-inline-root[data-theme="custom"] .vt-settings-container { background: radial-gradient(circle at 20% 0%, #252525, #101010 46%); }
+#vt-settings-inline-root[data-theme="custom"] .vt-setting-item { min-height: 82px; border: 1px solid rgba(255,255,255,.1); background: rgba(42,42,42,.88); }
+#vt-settings-inline-root[data-theme="custom"] .vt-tab.vt-tab-selected { background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+
+/* 0.5.1 staged settings and native save confirmation */
+.vt-settings-dirty .vt-settings-hint { color: #ffd166; font-weight: 600; }
+.vt-save-confirm {
+  position: fixed; inset: 0; z-index: 2147483646;
+  display: grid; place-items: center;
+  background: rgba(0,0,0,.68); backdrop-filter: blur(8px);
+  font-family: Roboto, Arial, sans-serif; color: #fff;
+}
+.vt-save-confirm-card {
+  width: min(680px, calc(100vw - 48px));
+  padding: 34px; border-radius: 18px;
+  background: #212121; box-shadow: 0 24px 80px rgba(0,0,0,.55);
+}
+.vt-save-confirm-card h2 { margin: 0 0 12px; font-size: 30px; font-weight: 500; }
+.vt-save-confirm-card p { margin: 0; color: rgba(255,255,255,.72); font-size: 20px; line-height: 1.45; }
+.vt-save-confirm-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 30px; }
+.vt-save-confirm .vt-button { min-width: 130px; border: 0; border-radius: 999px; padding: 14px 24px; background: rgba(255,255,255,.12); color: #fff; font-size: 18px; }
+.vt-save-confirm .vt-button.vt-primary { background: #fff; color: #0f0f0f; }
+.vt-save-confirm .vt-button.vt-ui-focused,
+.vt-save-confirm .vt-button:focus-visible { outline: 4px solid #fff; outline-offset: 4px; transform: scale(1.04); }
+
+/* 0.5.2: keep YouTube TV's native settings navigation visible and render VacuumTube only in the detail pane */
+#vtw-native-settings-entry {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#vtw-native-settings-entry.vtw-native-settings-selected,
+#vtw-native-settings-entry[aria-selected="true"] {
+  background: rgba(255,255,255,.13) !important;
+  border-radius: 10px;
+}
+[data-vtw-settings-detail-host="true"] {
+  position: relative !important;
+  overflow: hidden !important;
+}
+[data-vtw-settings-detail-host="true"] > #vt-settings-inline-root {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+[data-vtw-settings-detail-host="true"] .vt-settings-container {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+[data-vtw-settings-detail-host="true"] .vt-settings-header {
+  min-height: 74px;
+  padding: 12px 22px;
+  background: #0f0f0f;
+}
+[data-vtw-settings-detail-host="true"] .vt-settings-body {
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  [data-vtw-settings-detail-host="true"] .vt-tabs-viewport { flex-basis: 230px; min-width: 190px; }
+  [data-vtw-settings-detail-host="true"] .vt-settings-title { font-size: 24px; }
+  [data-vtw-settings-detail-host="true"] .vt-settings-hint { display: none; }
+}

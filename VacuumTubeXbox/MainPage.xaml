@@ -1,0 +1,55 @@
+<Page
+    x:Class="VacuumTubeXbox.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:VacuumTubeXbox"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+    Background="Black"
+    XYFocusKeyboardNavigation="Enabled">
+
+    <Grid Background="Black">
+        <muxc:WebView2
+            x:Name="Browser"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch" />
+
+        <Grid
+            x:Name="StatusOverlay"
+            Background="#FF000000"
+            Visibility="Visible">
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="820"
+                Spacing="24">
+                <ProgressRing
+                    x:Name="LoadingRing"
+                    Width="72"
+                    Height="72"
+                    IsActive="True" />
+                <TextBlock
+                    x:Name="StatusTitle"
+                    Text="VacuumTube Xbox wird geladen"
+                    Foreground="White"
+                    FontSize="34"
+                    FontWeight="SemiBold"
+                    TextAlignment="Center" />
+                <TextBlock
+                    x:Name="StatusDetails"
+                    Text="WebView2 und integrierte Mods werden initialisiert."
+                    Foreground="#FFBEBEBE"
+                    FontSize="22"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+                <Button
+                    x:Name="RetryButton"
+                    Content="Erneut versuchen"
+                    HorizontalAlignment="Center"
+                    Padding="32,14"
+                    FontSize="22"
+                    Visibility="Collapsed"
+                    Click="RetryButton_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

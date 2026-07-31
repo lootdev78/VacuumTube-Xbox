@@ -1,0 +1,92 @@
+/* Xbox-native additions are inserted into existing Leanback surfaces. */
+#vt-xbox-player-clock.vt-xbox-native-player-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.2rem;
+  margin-inline: .75rem;
+  font: inherit;
+  color: inherit;
+  opacity: .92;
+}
+html[data-vt-xbox-hide-endscreen] .html5-endscreen,
+html[data-vt-xbox-hide-endscreen] .ytp-endscreen-content,
+html[data-vt-xbox-hide-endscreen] [class*="endscreen" i] { display: none !important; }
+/* Never render a touch D-pad in the Xbox build. */
+#vtw-touch, .vtw-touch-controller, [data-vtw-touch] { display: none !important; }
+
+/* Consolidated features adapted from youtube-webos and TizenTube. */
+html[data-vtw-hide-logo] ytlr-redux-connect-ytlr-logo-entity,
+html[data-vtw-hide-logo] [class*="youtube-logo" i],
+html[data-vtw-hide-logo] [id*="youtube-logo" i] { visibility: hidden !important; }
+
+html[data-vtw-audio-only] video { visibility: hidden !important; }
+html[data-vtw-audio-only] .html5-video-container,
+html[data-vtw-audio-only] [class*="video-container" i] { background: #000 !important; }
+
+[data-vtw-hidden-signin-reminder="true"] { display: none !important; }
+
+html.vtw-screen-dimmed::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  background: rgba(0, 0, 0, var(--vtw-dim-opacity, .55));
+  transition: background-color .25s ease;
+}
+
+.vtw-native-player-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px 12px;
+  margin-inline: 2px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.vtw-native-player-button:hover,
+.vtw-native-player-button:focus,
+.vtw-native-player-button:focus-visible {
+  background: rgba(255,255,255,.2);
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.vtw-native-player-button > span { font-size: 22px; line-height: 1; }
+
+#vtw-chapter-markers {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+.vtw-chapter-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  min-width: 3px;
+  padding: 0;
+  border: 0;
+  background: rgba(255,255,255,.92);
+  transform: translateX(-1px);
+  pointer-events: auto;
+}
+.vtw-chapter-marker:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+html[data-vtw-focus-theme="high-contrast"] [tabindex="0"]:focus,
+html[data-vtw-focus-theme="high-contrast"] button:focus {
+  outline: 5px solid #fff !important;
+  outline-offset: 4px !important;
+  box-shadow: 0 0 0 8px #000 !important;
+}
+html[data-vtw-focus-theme="blue"] [tabindex="0"]:focus,
+html[data-vtw-focus-theme="blue"] button:focus {
+  outline-color: #3ea6ff !important;
+}

@@ -1,79 +1,106 @@
-# VacuumTube Xbox
+# VacuumTube Xbox 1.1.0 – konsolidierter Xbox-One-Dev-Mode-Port
 
-UWP-/WinUI-2-Port von VacuumTube für **Xbox One** und **Xbox Series X|S**. Die App verwendet WebView2 als Leanback-Client und benötigt zur Laufzeit weder Node.js noch Electron.
+Dieses Projekt ist der refaktorierte Xbox-Port. Die bereitgestellten Projekte VacuumTube 1.8.2, youtube-webos 0.5.3 und TizenTube 1.14.7 wurden **funktional verglichen**. Fehlende, auf Xbox sinnvoll ausführbare Funktionen wurden in die gemeinsame WebView2-/UWP-Laufzeit übertragen.
 
-## Was geändert wurde
+Das Paket enthält keine vollständigen Upstream-Quellkopien. Enthalten sind nur der konsolidierte Port, die Builddateien, Tests, Feature-Matrix und Lizenzhinweise.
 
-- Electron, Electron IPC, `electron-updater`, Auto-Updater und Node-Laufzeit entfernt.
-- Alle vorhandenen DOM-, JSON- und XHR-Modifikatoren werden als ein frühes WebView2-Skript eingebunden.
-- Electron-Preload-Aufrufe wurden durch eine `chrome.webview`-Hostbrücke ersetzt.
-- Xbox-Controller werden nativ über `Windows.Gaming.Input` gelesen und auf die bisherigen VacuumTube-Controllercodes abgebildet.
-- DIAL/„Mit TV verbinden“ läuft über native UWP-UDP-/TCP-Sockets.
-- Konfiguration wird in `ApplicationData.Current.LocalSettings` gespeichert.
-- WebView2 verwendet wieder exakt die beiden ursprünglichen VacuumTube-PS4-/Cobalt-User-Agents: Cobalt/19 im Client und Cobalt/25 für `www.youtube.com`-Requests.
-- Cookies, DOM Storage, IndexedDB und Berechtigungen verbleiben im persistenten Standard-WebView2-Profil; InPrivate wird abgewiesen.
-- Google-/YouTube-Anmeldefenster bleiben im selben WebView2-Profil, statt in einen externen Browser mit getrennten Cookies zu wechseln.
-- Userstyles/Custom-CSS sind vollständig entfernt; nur internes VacuumTube-UI-CSS bleibt enthalten.
-- SponsorBlock nutzt einen lokalen WebView2-Adapter statt des Node-Pakets `sponsorblock-api`.
-- DeArrow, SponsorBlock und Return YouTube Dislike können über einen nativen, auf bekannte Hosts begrenzten HTTP-Proxy arbeiten.
+## Wichtigste integrierte Bereiche
 
-## Projektstruktur
+- SponsorBlock mit Kategorien, manuellen Sprüngen, Highlight und Rückgängig.
+- DeArrow-Titel und -Thumbnails.
+- Return YouTube Dislike im Player.
+- Anzeigen-, Shorts-, Endscreen-, „Noch da?“- und Sign-in-Nudge-Filter.
+- HQ-Thumbnails, Video-Vorschauen, watched filter und alphabetische Abos.
+- Kapitelmarkierungen, lokale Queue, A-Long-Press, vorherige/nächste und Speed-Buttons.
+- zusätzliche Untertitelsprachen und Spracheinstellungs-Fix.
+- Konto-Autoselect und „Wer schaut?“-Optionen.
+- Bildschirm während echter Wiedergabe aktiv halten (native `DisplayRequest`-Adaption des webOS-Screensaver-Fixes).
+- Sprachsuche mit auf YouTube begrenzter WebView2-Mikrofonfreigabe.
+- Startziel, Dimming, Player-Uhr, Audio-only, Pause bei Suspend und native Bildschirmschoner-Sperre während der Wiedergabe.
+- native DIAL-Implementierung.
+- ausschließlich native Xbox-Controller-Steuerung über `Windows.Gaming.Input.Gamepad`.
+- VacuumTube-Einstellungen innerhalb der YouTube-TV-Oberfläche.
+- lokale Diagnose mit automatischer Löschung nach drei Tagen.
 
-- `VacuumTube.Xbox/` – UWP-/WinUI-2-WebView2-Host
-- `src/preload/` – portierte VacuumTube-Mods
-- `src/xbox/` – Browser-Shims, Hostbrücke und App-Metadaten
-- `tools/build_bundle.py` – bundelt die Mods ohne Node/npm
-- `docs/MOD_COMPATIBILITY.md` – Xbox-Kompatibilitätsanalyse je Mod
-- `docs/SPONSORBLOCK.md` – SponsorBlock-Implementierung
-- `docs/FINAL_AUDIT.md` – verbindlicher Status aller angeforderten Prüfungen
-- `docs/XBOX_HARDWARE_TEST.md` – reproduzierbare Windows-/Xbox-Testcheckliste
+Die vollständige Zuordnung steht in [Docs/FEATURE-MATRIX.md](Docs/FEATURE-MATRIX.md).
 
-## Bauen
+## Xbox-Controller
 
-Voraussetzungen auf Windows:
+- A: bestätigen; lange halten = fokussiertes Video zur Queue.
+- B: zurück.
+- D-Pad/linker Stick: Navigation.
+- LB/RB: Tabs.
+- Menü: originale YouTube-TV-Einstellungen.
+- X: Wiedergabe/Pause.
+- Y: Untertitel.
+- View: nächster Queue-Eintrag.
+- rechter Stick drücken: Geschwindigkeit wechseln.
+- LT/RT: Lautstärke.
 
-1. Visual Studio 2022 mit **Universal Windows Platform development**, **.NET desktop development**, **Desktop development with C++** und Windows 11 SDK 10.0.26100.
-2. Zum validierten Release-Compile im Projektordner ausführen:
+Browser-Gamepads, PlayStation-/Nintendo-Profile und das Bildschirm-D-Pad sind im Xbox-Host deaktiviert. Eigene VacuumTube-Tastatursteuerung akzeptiert dort nur intern markierte Xbox-Ereignisse.
 
-   ```powershell
-   .\tools\Build-Xbox.ps1 -Configuration Release -Platform x64
-   ```
-
-3. Für ein signiertes Entwicklungs-Sideload-Paket:
-
-   ```powershell
-   .\tools\Build-Xbox.ps1 -Configuration Release -Platform x64 -Package `
-     -GenerateTestCertificate -CertificatePassword 'NUR-FUER-ENTWICKLUNG'
-   ```
-
-   Alternativ `-CertificatePath` und `-CertificatePassword` für ein vorhandenes PFX verwenden.
-
-4. Xbox in den Entwicklermodus versetzen und das Paket über Visual Studio oder Xbox Device Portal installieren. Die Hardwarecheckliste in `docs/XBOX_HARDWARE_TEST.md` auf Xbox One und Series X|S getrennt ausführen.
-
-Für Store- oder Retail-Verteilung müssen Identität, Publisher-Zertifikat und Xbox-Partner-Center-Konfiguration ersetzt werden.
-
-## Visual Studio Code
-
-Das Projekt enthält `.vscode/tasks.json` für Bundle/Validierung, UWP-Release-Build und ein signiertes Sideload-Paket. Die nativen Tasks funktionieren nur unter Windows mit Visual Studio 2022 oder Visual Studio Build Tools, UWP-Komponenten und Windows SDK. Visual Studio Code allein enthält kein UWP-MSBuild.
-
-## Lokale Prüfungen
+## Projektaufbau
 
 ```text
-python tools/build_bundle.py
-python tools/analyze_mods.py
-python tools/validate_project.py
-node tools/test_sponsorblock_adapter.js
-python tools/test_bundle_runtime.py
+VacuumTubeXbox/
+  Assets/ExtensionRuntime/   integrierte Leanback-/Mod-Laufzeit
+  Services/                  Storage, APIs, DIAL, Controller und WebView-Bridge
+  Certificates/              Debug-Zertifikat für Sideloading
+Docs/
+  FEATURE-MATRIX.md          kompletter Vergleich und Übernahmestatus
+  UPSTREAM-MAP.md            technische Zuordnung
+  ARCHITECTURE.md            Laufzeit und Sicherheitsgrenzen
+Tests/
+  xbox-shim.test.js
+  feature-refactor.test.js
+Scripts/
+  Verify-Environment.ps1
+  Build-Debug-MSIX.ps1
+  Deploy-Xbox-DevMode.ps1
 ```
 
-Der Chromium-Laufzeittest benötigt Chromium und das Python-Paket `websocket-client`. Der aktuelle Stand enthält 29/29 verbleibende Mod-Einstiegspunkte und getesteten JSON-/XHR-Adblock. Details und ehrliche Einschränkungen stehen in `docs/FINAL_AUDIT.md` und `docs/TEST_REPORT.md`. Eine echte UWP-/Xbox-Kompilierung ist unter Linux nicht möglich und wurde nicht als bestanden ausgegeben.
+## Build auf Windows
 
-## GitHub Actions: signierte Debug-App
+Benötigt:
 
-Der Workflow **Xbox Debug App** unter `.github/workflows/xbox-debug-app.yml` läuft auf `windows-2022`, führt Bundle-Build, Mod-/Projektprüfung, echten MSBuild-NuGet-Restore sowie einen signierten x64-Debug-UWP-Paketbuild aus. Nach erfolgreichem Lauf steht das Artefakt **VacuumTube-Xbox-Debug-x64** zum Download bereit. Details stehen in `docs/GITHUB_ACTIONS.md`.
+- Windows 10 oder 11 x64.
+- Visual Studio 2022.
+- Workload **Universal Windows Platform development**.
+- Windows 10 SDK 10.0.19041 oder neuer.
+- NuGet-Zugriff beim ersten Restore.
 
-Ein neues GitHub-Repository kann auf einem angemeldeten Rechner mit GitHub CLI so erstellt und gepusht werden:
+PowerShell:
 
 ```powershell
-.\tools\Publish-GitHub.ps1 -Repository OWNER/VacuumTube-Xbox-WebView2 -Visibility public
+Set-ExecutionPolicy -Scope Process Bypass
+.\Scripts\Verify-Environment.ps1
+.\Scripts\Build-Debug-MSIX.ps1
 ```
+
+Debug-Zertifikat:
+
+- Publisher: `CN=VacuumTube Xbox Debug`
+- PFX-Passwort: `VacuumTubeXboxDebug!`
+- Thumbprint: siehe `VacuumTubeXbox/Certificates/THUMBPRINT.txt`
+
+## Installation auf Xbox One/Series im Dev Mode
+
+1. Xbox Developer Mode und Device Portal aktivieren.
+2. Projekt auf einem Windows-PC bauen.
+3. Im Device Portal **Add** wählen.
+4. erzeugtes `.msix`/`.appx`, Abhängigkeiten und bei Bedarf `.cer` hinzufügen.
+5. App starten.
+
+Optional:
+
+```powershell
+.\Scripts\Deploy-Xbox-DevMode.ps1 -XboxIp 192.168.1.50 -Pin 123456
+```
+
+## Validierungsgrenze
+
+Das Source-Kit wurde in einer Linux-Umgebung statisch und mit Node-Regressionstests geprüft. Visual Studio, UWP-MSBuild, Windows SDK und Xbox-Hardware standen dort nicht zur Verfügung. Deshalb ist kein als getestet ausgegebenes MSIX enthalten. Der abschließende Build und Live-Test muss auf Windows und der Ziel-Xbox erfolgen.
+
+## Lizenz
+
+GPL-3.0-or-later. Siehe `LICENSE` und `THIRD_PARTY_NOTICES.md`.

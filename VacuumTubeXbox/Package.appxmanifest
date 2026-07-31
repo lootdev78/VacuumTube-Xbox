@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  IgnorableNamespaces="uap mp">
+
+  <Identity
+    Name="VacuumTubeXbox.Debug"
+    Publisher="CN=VacuumTube Xbox Debug"
+    Version="1.1.0.0" />
+
+  <mp:PhoneIdentity PhoneProductId="a20be08f-3893-467c-91bc-69c3a7c51640" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
+
+  <Properties>
+    <DisplayName>VacuumTube Xbox</DisplayName>
+    <PublisherDisplayName>VacuumTube Community Port</PublisherDisplayName>
+    <Logo>Assets\Branding\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="de-DE" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="VacuumTubeXbox.App">
+      <uap:VisualElements
+        DisplayName="VacuumTube Xbox"
+        Description="YouTube TV mit integrierten VacuumTube-Mods für Xbox Dev Mode"
+        BackgroundColor="#000000"
+        Square150x150Logo="Assets\Branding\Square150x150Logo.png"
+        Square44x44Logo="Assets\Branding\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Branding\Wide310x150Logo.png" Square310x310Logo="Assets\Branding\Square310x310Logo.png" />
+        <uap:SplashScreen Image="Assets\Branding\SplashScreen.png" BackgroundColor="#000000" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <Capability Name="internetClientServer" />
+    <Capability Name="privateNetworkClientServer" />
+    <DeviceCapability Name="microphone" />
+  </Capabilities>
+</Package>

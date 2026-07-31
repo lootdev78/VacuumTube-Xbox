@@ -6,19 +6,21 @@ name: Xbox Debug App
     branches:
       - main
     paths:
-      - "VacuumTube.Xbox/**"
-      - "src/**"
-      - "locale/**"
-      - "tools/**"
-      - "VacuumTube.Xbox.sln"
+      - "VacuumTubeXbox/**"
+      - "Scripts/**"
+      - "Tests/**"
+      - "VacuumTubeXbox.sln"
+      - "NuGet.config"
+      - ".vsconfig"
       - ".github/workflows/xbox-debug-app.yml"
   pull_request:
     paths:
-      - "VacuumTube.Xbox/**"
-      - "src/**"
-      - "locale/**"
-      - "tools/**"
-      - "VacuumTube.Xbox.sln"
+      - "VacuumTubeXbox/**"
+      - "Scripts/**"
+      - "Tests/**"
+      - "VacuumTubeXbox.sln"
+      - "NuGet.config"
+      - ".vsconfig"
       - ".github/workflows/xbox-debug-app.yml"
 
 permissions:
@@ -30,26 +32,27 @@ concurrency:
 
 jobs:
   build-debug-appx:
-    name: Build signed Debug APPX (x64)
+    name: Build signed Debug APPX/MSIX (x64)
     runs-on: windows-2022
     timeout-minutes: 45
 
     env:
-      SOLUTION: VacuumTube.Xbox.sln
+      SOLUTION: VacuumTubeXbox.sln
+      PROJECT: VacuumTubeXbox\VacuumTubeXbox.csproj
+      MANIFEST: VacuumTubeXbox\Package.appxmanifest
       CONFIGURATION: Debug
       PLATFORM: x64
-      # Keep the NuGet cache in the workspace; generated directories are ignored
-      # by the project validator and are never uploaded as build artifacts.
       NUGET_PACKAGES: '${{ github.workspace }}\.nuget\packages'
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
-          python-version: "3.12"
+          node-version: "24.x"
+          package-manager-cache: false
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
@@ -57,11 +60,12 @@ jobs:
           msbuild-architecture: x64
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          key: nuget-${{ runner.os }}-${{ env.PLATFORM }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json', 'NuGet.config') }}
           restore-keys: |
+            nuget-${{ runner.os }}-${{ env.PLATFORM }}-
             nuget-${{ runner.os }}-
 
       - name: Create CI directories
@@ -83,7 +87,6 @@ jobs:
           @(
             "Runner: $env:ImageOS / $env:ImageVersion"
             "MSBuild: $((Get-Command msbuild).Source)"
-            "Python: $(python --version 2>&1)"
             "Node: $(node --version 2>&1)"
             "NuGet packages: $env:NUGET_PACKAGES"
           ) | Tee-Object -FilePath artifacts\ci\toolchain.txt
@@ -91,96 +94,73 @@ jobs:
           msbuild -version |
             Tee-Object -FilePath artifacts\ci\msbuild-version.txt
 
-      - name: Build JavaScript bundle
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          python tools\build_bundle.py 2>&1 |
-            Tee-Object artifacts\ci\build-bundle.log
-
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
-
-      - name: Analyze mods
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          python tools\analyze_mods.py 2>&1 |
-            Tee-Object artifacts\ci\analyze-mods.log
-
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
-
-      - name: Validate project
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          python tools\validate_project.py 2>&1 |
-            Tee-Object artifacts\ci\validate-project.log
-
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
-
-      - name: Test SponsorBlock adapter
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          node tools\test_sponsorblock_adapter.js 2>&1 |
-            Tee-Object artifacts\ci\sponsorblock.log
-
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
-
       - name: Validate JavaScript syntax
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $log = 'artifacts\ci\javascript-syntax.log'
 
-          node --check VacuumTube.Xbox\Web\vacuumtube.bundle.js
+          $files = Get-ChildItem `
+            -Path VacuumTubeXbox\Assets\ExtensionRuntime, Tests `
+            -Recurse `
+            -File `
+            -Filter *.js |
+              Sort-Object FullName
 
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+          if (-not $files) {
+            throw 'No JavaScript files were found for validation.'
           }
 
-          Get-ChildItem src -Recurse -File -Filter *.js |
-            ForEach-Object {
-              node --check $_.FullName
+          foreach ($file in $files) {
+            "Checking $($file.FullName)" |
+              Tee-Object -FilePath $log -Append
 
-              if ($LASTEXITCODE -ne 0) {
-                exit $LASTEXITCODE
-              }
+            node --check $file.FullName 2>&1 |
+              Tee-Object -FilePath $log -Append
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "JavaScript syntax validation failed: $($file.FullName)"
+            }
+          }
+
+      - name: Run Xbox regression tests
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $log = 'artifacts\ci\node-tests.log'
+
+          $tests = @(
+            'Tests\xbox-shim.test.js'
+            'Tests\feature-refactor.test.js'
+          )
+
+          foreach ($test in $tests) {
+            if (-not (Test-Path $test)) {
+              throw "Required regression test is missing: $test"
             }
 
-      - name: Restore NuGet packages
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
+            "Running $test" |
+              Tee-Object -FilePath $log -Append
 
-          msbuild $env:SOLUTION `
-            /t:Restore `
-            /m `
-            /p:Configuration=$env:CONFIGURATION `
-            /p:Platform=$env:PLATFORM `
-            /p:RestorePackagesPath="$env:NUGET_PACKAGES" `
-            /verbosity:minimal 2>&1 |
-              Tee-Object artifacts\ci\nuget-restore.log
+            node $test 2>&1 |
+              Tee-Object -FilePath $log -Append
 
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+            if ($LASTEXITCODE -ne 0) {
+              throw "Regression test failed: $test"
+            }
           }
 
-      - name: Generate ephemeral signing password
+      - name: Generate ephemeral signing certificate
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
+          $certificateDirectory = 'VacuumTubeXbox\Certificates'
+          $pfxPath = Join-Path $certificateDirectory 'VacuumTubeXbox_Debug.pfx'
+          $cerPath = Join-Path $certificateDirectory 'VacuumTubeXbox_Debug.cer'
+
+          New-Item -ItemType Directory -Force -Path $certificateDirectory |
+            Out-Null
 
           $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
           $bytes = New-Object byte[] 32
@@ -193,55 +173,95 @@ jobs:
           }
 
           $password = [Convert]::ToBase64String($bytes)
+          $securePassword = ConvertTo-SecureString `
+            $password `
+            -AsPlainText `
+            -Force
 
           Write-Output "::add-mask::$password"
 
-          "VT_CERT_PASSWORD=$password" |
-            Out-File `
-              -FilePath $env:GITHUB_ENV `
-              -Encoding utf8 `
-              -Append
+          $certificate = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=VacuumTube Xbox Debug' `
+            -FriendlyName "VacuumTube Xbox CI $env:GITHUB_RUN_ID" `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3') `
+            -NotAfter (Get-Date).AddYears(1)
 
-      - name: Compile and package signed Debug APPX
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
+          Export-PfxCertificate `
+            -Cert $certificate `
+            -FilePath $pfxPath `
+            -Password $securePassword `
+            -Force |
+              Out-Null
 
-          .\tools\Build-Xbox.ps1 `
-            -Configuration $env:CONFIGURATION `
-            -Platform $env:PLATFORM `
-            -Package `
-            -GenerateTestCertificate `
-            -CertificatePassword $env:VT_CERT_PASSWORD `
-            -NoRestore 2>&1 |
-              Tee-Object artifacts\ci\msbuild-debug-package.log
+          Export-Certificate `
+            -Cert $certificate `
+            -FilePath $cerPath `
+            -Type CERT `
+            -Force |
+              Out-Null
 
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+          $projectPath = (Resolve-Path $env:PROJECT).Path
+          $projectXml = Get-Content $projectPath -Raw
+          $thumbprintElement = '<PackageCertificateThumbprint>[^<]*</PackageCertificateThumbprint>'
+          $replacement = "<PackageCertificateThumbprint>$($certificate.Thumbprint)</PackageCertificateThumbprint>"
+          $updatedProjectXml = [regex]::Replace(
+            $projectXml,
+            $thumbprintElement,
+            $replacement,
+            1
+          )
+
+          if ($updatedProjectXml -eq $projectXml) {
+            throw 'PackageCertificateThumbprint was not found in the project file.'
           }
 
-      - name: Remove private signing key
+          $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+          [System.IO.File]::WriteAllText(
+            $projectPath,
+            $updatedProjectXml,
+            $utf8WithoutBom
+          )
+
+          "VT_CERT_PASSWORD=$password" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          "VT_CERT_THUMBPRINT=$($certificate.Thumbprint)" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          @(
+            "Subject: $($certificate.Subject)"
+            "Thumbprint: $($certificate.Thumbprint)"
+            "NotAfter: $($certificate.NotAfter.ToUniversalTime().ToString('o'))"
+            "PFX: $pfxPath"
+            "CER: $cerPath"
+          ) | Set-Content `
+                -Path artifacts\ci\signing-certificate.txt `
+                -Encoding utf8
+
+      - name: Compile and package signed Debug APPX/MSIX
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $log = 'artifacts\ci\msbuild-debug-package.log'
 
-          # Explicitly remove the temporary private key. Only the public .cer
-          # and the already signed package are published.
-          Remove-Item artifacts\*.pfx -Force -ErrorAction SilentlyContinue
-
-          $privateKeys = Get-ChildItem `
-            -Path artifacts `
-            -Recurse `
-            -File `
-            -Include *.pfx,*.pvk,*.key,*.pem `
-            -ErrorAction SilentlyContinue
-
-          if ($privateKeys) {
-            $privateKeys | ForEach-Object {
-              Write-Error "Private signing material remains: $($_.FullName)"
-            }
-
-            throw 'Private signing material remains in artifacts.'
+          try {
+            & .\Scripts\Build-Debug-MSIX.ps1 `
+              -Configuration $env:CONFIGURATION `
+              -Platform $env:PLATFORM `
+              -CertificatePassword $env:VT_CERT_PASSWORD *>&1 |
+                Tee-Object -FilePath $log
+          }
+          catch {
+            $_ | Out-String |
+              Tee-Object -FilePath $log -Append
+            throw
           }
 
       - name: Prepare downloadable Debug package
@@ -250,8 +270,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           $drop = 'artifacts\GitHubDebugDrop'
-          $packageSource = 'artifacts\AppxPackages'
-          $publicCertificate = 'artifacts\VacuumTube-Xbox-Development.cer'
+          $packageSource = 'AppPackages'
+          $publicCertificate = 'VacuumTubeXbox\Certificates\VacuumTubeXbox_Debug.cer'
 
           if (Test-Path $drop) {
             Remove-Item $drop -Recurse -Force
@@ -261,7 +281,7 @@ jobs:
             Out-Null
 
           if (-not (Test-Path $packageSource)) {
-            throw 'APPX/MSIX package directory was not created.'
+            throw 'The AppPackages directory was not created.'
           }
 
           $packages = Get-ChildItem `
@@ -276,12 +296,12 @@ jobs:
 
           Copy-Item `
             $packageSource `
-            -Destination $drop\AppxPackages `
+            -Destination $drop\AppPackages `
             -Recurse `
             -Force
 
           if (-not (Test-Path $publicCertificate)) {
-            throw 'The public development certificate was not generated.'
+            throw 'The public CI development certificate was not generated.'
           }
 
           Copy-Item `
@@ -289,24 +309,26 @@ jobs:
             -Destination $drop `
             -Force
 
-          if (Test-Path VacuumTube.Xbox\bin\x64\Debug) {
-            New-Item `
-              -ItemType Directory `
-              -Force `
-              -Path $drop\Symbols |
-                Out-Null
+          $symbolSource = "VacuumTubeXbox\bin\$env:PLATFORM\$env:CONFIGURATION"
 
-            Get-ChildItem `
-              VacuumTube.Xbox\bin\x64\Debug `
+          if (Test-Path $symbolSource) {
+            $symbols = Get-ChildItem `
+              -Path $symbolSource `
               -Recurse `
               -File `
-              -Filter *.pdb |
-                ForEach-Object {
-                  Copy-Item `
-                    $_.FullName `
-                    -Destination $drop\Symbols `
-                    -Force
-                }
+              -Filter *.pdb
+
+            if ($symbols) {
+              New-Item -ItemType Directory -Force -Path $drop\Symbols |
+                Out-Null
+
+              $symbols | ForEach-Object {
+                Copy-Item `
+                  $_.FullName `
+                  -Destination $drop\Symbols `
+                  -Force
+              }
+            }
           }
 
           $forbiddenFiles = Get-ChildItem `
@@ -317,8 +339,31 @@ jobs:
             -ErrorAction SilentlyContinue
 
           if ($forbiddenFiles) {
+            $forbiddenFiles | ForEach-Object {
+              Write-Error "Private signing material detected: $($_.FullName)"
+            }
+
             throw 'Private signing material detected in the upload directory.'
           }
+
+          [xml]$manifest = Get-Content $env:MANIFEST
+          $namespace = New-Object System.Xml.XmlNamespaceManager($manifest.NameTable)
+          $namespace.AddNamespace(
+            'appx',
+            'http://schemas.microsoft.com/appx/manifest/foundation/windows10'
+          )
+          $identity = $manifest.SelectSingleNode(
+            '/appx:Package/appx:Identity',
+            $namespace
+          )
+
+          if (-not $identity) {
+            throw 'Package identity was not found in Package.appxmanifest.'
+          }
+
+          $packageVersion = $identity.Version
+          "PACKAGE_VERSION=$packageVersion" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $resolvedDrop = (Resolve-Path $drop).Path
           $hashFiles = Get-ChildItem $drop -Recurse -File |
@@ -328,10 +373,12 @@ jobs:
                 '.msix',
                 '.appxbundle',
                 '.msixbundle',
+                '.appxsym',
                 '.cer',
                 '.pdb'
               )
-            }
+            } |
+              Sort-Object FullName
 
           $hashLines = foreach ($file in $hashFiles) {
             $hash = Get-FileHash -Algorithm SHA256 -Path $file.FullName
@@ -347,12 +394,13 @@ jobs:
           @(
             '### VacuumTube Xbox Debug build'
             ''
+            "- Version: **$packageVersion**"
             "- Configuration: **$env:CONFIGURATION**"
             "- Platform: **$env:PLATFORM**"
             '- Package: signed development APPX/MSIX'
             '- Public certificate included: **yes**'
-            '- Existing certificate or license required: **no**'
             '- Private signing key included: **no**'
+            '- Node regression tests: **passed**'
           ) | Out-File `
                 $env:GITHUB_STEP_SUMMARY `
                 -Append `
@@ -361,7 +409,7 @@ jobs:
       - name: Upload Debug app
         uses: actions/upload-artifact@v7
         with:
-          name: VacuumTube-Xbox-Debug-x64
+          name: VacuumTube-Xbox-Debug-${{ env.PACKAGE_VERSION }}-x64
           path: |
             artifacts/GitHubDebugDrop/**
             !artifacts/GitHubDebugDrop/**/*.pfx
@@ -370,6 +418,39 @@ jobs:
             !artifacts/GitHubDebugDrop/**/*.pem
           if-no-files-found: error
           retention-days: 14
+
+      - name: Remove private signing key
+        if: always()
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          Remove-Item `
+            VacuumTubeXbox\Certificates\VacuumTubeXbox_Debug.pfx `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          if ($env:VT_CERT_THUMBPRINT) {
+            Remove-Item `
+              "Cert:\CurrentUser\My\$env:VT_CERT_THUMBPRINT" `
+              -Force `
+              -ErrorAction SilentlyContinue
+          }
+
+          $privateKeys = Get-ChildItem `
+            -Path artifacts `
+            -Recurse `
+            -File `
+            -Include *.pfx,*.pvk,*.key,*.pem `
+            -ErrorAction SilentlyContinue
+
+          if ($privateKeys) {
+            $privateKeys | ForEach-Object {
+              Write-Error "Private signing material remains in artifacts: $($_.FullName)"
+            }
+
+            exit 1
+          }
 
       - name: Upload CI logs
         if: always()
