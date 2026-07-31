@@ -156,7 +156,7 @@ namespace VacuumTubeXbox.Services
             try
             {
                 DataReader reader = args.GetDataReader();
-                reader.UnicodeEncoding = UnicodeEncoding.Utf8;
+                reader.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
                 string request = reader.ReadString(reader.UnconsumedBufferLength);
                 if (!request.StartsWith("M-SEARCH * HTTP/1.1", StringComparison.OrdinalIgnoreCase)) return;
                 if (request.IndexOf("urn:dial-multiscreen-org:service:dial:1", StringComparison.OrdinalIgnoreCase) < 0 &&
@@ -173,7 +173,7 @@ namespace VacuumTubeXbox.Services
                 IOutputStream stream = await sender.GetOutputStreamAsync(args.RemoteAddress, args.RemotePort);
                 using (DataWriter writer = new DataWriter(stream))
                 {
-                    writer.UnicodeEncoding = UnicodeEncoding.Utf8;
+                    writer.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
                     writer.WriteString(response);
                     await writer.StoreAsync();
                     await writer.FlushAsync();
@@ -299,7 +299,7 @@ namespace VacuumTubeXbox.Services
         {
             using (DataReader reader = new DataReader(input))
             {
-                reader.UnicodeEncoding = UnicodeEncoding.Utf8;
+                reader.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
                 reader.InputStreamOptions = InputStreamOptions.Partial;
                 StringBuilder text = new StringBuilder();
                 int contentLength = 0;
@@ -355,7 +355,7 @@ namespace VacuumTubeXbox.Services
             headers.Append("Content-Length: ").Append(length).Append("\r\nConnection: close\r\n\r\n").Append(body);
             using (DataWriter writer = new DataWriter(output))
             {
-                writer.UnicodeEncoding = UnicodeEncoding.Utf8;
+                writer.UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding.Utf8;
                 writer.WriteString(headers.ToString());
                 await writer.StoreAsync();
                 await writer.FlushAsync();
